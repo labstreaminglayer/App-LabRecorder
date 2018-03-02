@@ -24,8 +24,8 @@ matrix:
         - mkdir cmakebin && travis_retry wget --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C cmakebin
         - travis_retry wget --quiet ${DEB_URL}/liblsl-dev.deb
         - travis_retry wget --quiet ${DEB_URL}/liblsl.deb
-        - dpkg -c liblsl.deb LSL
-        - dpkg -c liblsl-dev.deb LSL
+        - dpkg -x liblsl.deb LSL
+        - dpkg -x liblsl-dev.deb LSL
         - export CMAKE_EXE=$PWD/cmakebin/bin/cmake
 #    - os: osx
 #      before_install:
