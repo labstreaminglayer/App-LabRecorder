@@ -47,6 +47,7 @@ add_executable(${target}
 	recording.cpp
     targetver.h
 )
+target_compile_features(${target} PRIVATE cxx_auto_type)
 
 find_package(Boost REQUIRED COMPONENTS filesystem iostreams thread)
 set(zlib_libs "")
