@@ -5,7 +5,7 @@ shallow_clone: true
 environment:
   VCVER: 14.0
   QTVER: 5.10.0
-  QTCOMPILER: msvc2015
+  QTCOMPILER: msvc2015_64
   ARCH: x64
   CMakeArgs: ""
 install:
