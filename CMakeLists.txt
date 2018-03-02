@@ -7,16 +7,15 @@ project(LabRecorder
 
 # load LSLAppBoilerplate if not done already
 if(NOT TARGET LSL::lsl)
-	if(NOT LSL_INSTALL_ROOT)
-		message(FATAL_ERROR "When building a single app out of tree you need to set LSL_INSTALL_ROOT ( cmake -DLSL_INSTALL_ROOT=/path/to/installed/lsl)")
-	endif()
-	if(NOT IS_ABSOLUTE ${LSL_INSTALL_ROOT})
-		message(FATAL_ERROR "LSL_INSTALL_ROOT needs to be an absolute path")
-	endif()
+	# when building out of tree LSL_ROOT needs to be specified on the cmd line
 	file(TO_CMAKE_PATH ${LSL_INSTALL_ROOT} LSL_INSTALL_ROOT)
-	list(APPEND CMAKE_MODULE_PATH "${LSL_INSTALL_ROOT}/cmake")
-    include(LSLAppBoilerplate)
-    include(LSLSaneDefaults)
+	find_package(LSL HINTS ${LSL_INSTALL_ROOT}/share/LSL/)
+	if(NOT LSL_FOUND)
+		message(FATAL_ERROR "Precompiled LSL was not found. Set LSL_INSTALL_ROOT to the LSL installation path ( cmake -DLSL_INSTALL_ROOT=/path/to/installed/lsl)")
+	endif()
+	list(APPEND CMAKE_MODULE_PATH ${LSL_DIR})
+	message(STATUS "Looking for LSLCMake in ${LSL_DIR}")
+	include(LSLCMake)
 endif()
 
 # GENERAL CONFIG #
@@ -29,8 +28,7 @@ cmake_policy(SET CMP0042 NEW) # ENABLE CMP0042: MACOSX_RPATH is enabled by defau
 set(META_PROJECT_DESCRIPTION "Record LabStreamingLayer streams to XDF data file.")
 
 # THIRD PARTY LIBRARIES #
-find_package(Qt5 REQUIRED COMPONENTS Network Xml Widgets)
-#TODO: Make sure the architecture of the Qt binaries matches the current context architecture.
+find_package(Qt5 REQUIRED COMPONENTS Network Widgets)
 
 # APPLICATION #
 
