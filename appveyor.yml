@@ -12,7 +12,7 @@ install:
 - cmd: >-
     appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -FileName ninja.zip
 
-    appveyor DownloadFile https://github.com/labstreaminglayer/liblsl/releases/download/1.12/liblsl_x64.zip
+    appveyor DownloadFile https://dl.bintray.com/tstenner/labstreaminglayer/liblsl_x64_1.12.zip
 
     7z x ninja.zip -oC:\projects\deps\ninja > nul
 
