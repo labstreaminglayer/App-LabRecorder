@@ -10,6 +10,7 @@ env:
 script:
 - mkdir -p build/install
 - cd build
+- cmake --version
 - $CMAKE_EXE --version
 - $CMAKE_EXE -DCMAKE_BUILD_TYPE=Release -DLSL_UNIXFOLDERS=1 -DCMAKE_INSTALL_PREFIX=install -DLSL_INSTALL_ROOT=LSL/usr $CMakeArgs ../
 - $CMAKE_EXE --build . --config Release --target install
@@ -26,8 +27,7 @@ matrix:
       before_script:
         - mkdir cmakebin && travis_retry wget --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C cmakebin
         - travis_retry wget --quiet ${LSLDIST_URL}/labstreaminglayer-liblsl{,-dev}_${LSL_VERSION}-${UBUNTU_DIST}_amd64.deb
-        - dpkg -x labstreaminglayer-liblsl_${LSL_VERSION}-${UBUNTU_DIST}_amd64.deb
-        - dpkg -x labstreaminglayer-liblsl-dev_${LSL_VERSION}-${UBUNTU_DIST}_amd64.deb
+        - for deb in *.deb; do dpkg -x ${deb} LSL; done
         - export CMAKE_EXE=$PWD/cmakebin/bin/cmake
 #    - os: osx
 #      before_install:
