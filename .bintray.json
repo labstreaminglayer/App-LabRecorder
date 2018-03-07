@@ -1,1 +1,29 @@
-../../LSL/liblsl/.bintray.json
+{
+    "package": {
+        "name": "liblsl",
+        "repo": "LSL",
+        "subject": "labstreaminglayer",
+        "desc": "Travis CI build",
+        "website_url": "https://github.com/labstreaminglayer/liblsl",
+        "issue_tracker_url": "https://github.com/labstreaminglayer/liblsl/issues",
+        "vcs_url": "https://github.com/labstreaminglayer/liblsl.git",
+        "github_use_tag_release_notes": true,
+        "licenses": ["MIT"],
+        "public_download_numbers": false,
+        "public_stats": false
+    },
+
+    "version": {
+        "name": "1.12",
+        "desc": "This is a version",
+        "released": "2017-09-14",
+        "vcs_tag": "",
+        "gpgSign": false
+    },
+    "files": [ {
+		"includePattern": "./build/((.)[^/]*\.deb)",
+		"uploadPattern": "$1",
+		"matrixParams": { "override": 1 }
+	}],
+    "publish": true
+}

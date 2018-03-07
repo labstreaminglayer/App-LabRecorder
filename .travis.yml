@@ -2,7 +2,6 @@ language: cpp
 dist: trusty
 compiler: clang
 env:
-  CMAKE_URL="https://cmake.org/files/v3.6/cmake-3.6.3-Linux-x86_64.tar.gz"
   LSLDIST_URL="https://dl.bintray.com/labstreaminglayer/LSL/"
   UBUNTU_DIST="trusty"
   LSL_VERSION="1.1.2"
@@ -11,9 +10,9 @@ script:
 - mkdir -p build/install
 - cd build
 - cmake --version
-- $CMAKE_EXE --version
-- $CMAKE_EXE -DCMAKE_BUILD_TYPE=Release -DLSL_UNIXFOLDERS=1 -DCMAKE_INSTALL_PREFIX=install -DLSL_INSTALL_ROOT=LSL/usr $CMakeArgs ../
-- $CMAKE_EXE --build . --config Release --target install
+- cmake -DCMAKE_BUILD_TYPE=Release -DLSL_UNIXFOLDERS=1 -DCMAKE_INSTALL_PREFIX=install -DLSL_INSTALL_ROOT=LSL/usr $CMakeArgs ../
+- cmake --build . --config Release --target install
+- cd ..
 matrix:
   include:
     - os: linux
@@ -25,10 +24,8 @@ matrix:
             - libboost-filesystem-dev
             - libboost-iostreams-dev
       before_script:
-        - mkdir cmakebin && travis_retry wget --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C cmakebin
         - travis_retry wget --quiet ${LSLDIST_URL}/labstreaminglayer-liblsl{,-dev}_${LSL_VERSION}-${UBUNTU_DIST}_amd64.deb
         - for deb in *.deb; do dpkg -x ${deb} LSL; done
-        - export CMAKE_EXE=$PWD/cmakebin/bin/cmake
 #    - os: osx
 #      before_install:
 #        - brew install qt
