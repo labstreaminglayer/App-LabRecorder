@@ -85,4 +85,4 @@ endif()
 installLSLApp(${target})
 installLSLAuxFiles(${target} default_config.cfg)
 
-include(LSLCPackCommon)
+include(LSLGenerateCPackConfig)
