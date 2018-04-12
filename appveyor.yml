@@ -4,7 +4,7 @@ pull_requests:
 shallow_clone: true
 environment:
   VCVER: 14.0
-  QTVER: 5.10.0
+  QTVER: 5.10.1
   QTCOMPILER: msvc2015_64
   ARCH: x64
   CMakeArgs: ""
@@ -12,7 +12,7 @@ install:
 - cmd: >-
     appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -FileName ninja.zip
 
-    appveyor DownloadFile https://dl.bintray.com/tstenner/labstreaminglayer/liblsl_x64_1.12.zip
+    appveyor DownloadFile https://bintray.com/labstreaminglayer/LSL/download_file?file_path=liblsl_x64_1.12.zip -FileName liblsl_x64.zip
 
     7z x ninja.zip -oC:\projects\deps\ninja > nul
 
