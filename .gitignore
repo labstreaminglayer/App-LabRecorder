@@ -1,3 +1,2 @@
 ui_*.h
-*.VC.*
-*.vcxproj*
+build/
