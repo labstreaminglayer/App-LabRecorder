@@ -41,8 +41,9 @@ deploy:
 - provider: BinTray
   username: tstenner
   api_key:
-    secure: zcgGai0IfIlkwU5IXEvoJ/Kr+w2DbKIBJr/677Q52BPwUT0aFWSvJuZp2obpY3u5
-  subject: tstenner
-  repo: labstreaminglayer
-  package: LSL
+    secure: Fo9tIQnGjVnCXB3euItvYrt85A5O9FPqq7LEpsdOuwW+eOg1rwA5Q1HLp4yWDXAl
+  subject: labstreaminglayer
+  version: 1.12
+  repo: LSL
+  package: LabRecorder
   override: true
