@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5)
 
 project(LabRecorder
     LANGUAGES CXX
-    VERSION 0.1.0)
+    VERSION 1.1.2)
 
 # load LSLAppBoilerplate if not done already
 if(NOT TARGET LSL::lsl)

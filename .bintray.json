@@ -21,7 +21,7 @@
         "gpgSign": false
     },
     "files": [ {
-		"includePattern": "./build/((.)[^/]*\.(deb|tar\.bz2))",
+		"includePattern": "./build/((.)[^/]*\.(deb|tar\.bz2|dmg))",
 		"uploadPattern": "$1",
 		"matrixParams": { "override": 1 }
 	}],
