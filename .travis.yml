@@ -10,7 +10,7 @@ script:
 - mkdir -p build/install
 - cd build
 - cmake --version
-- cmake -DCMAKE_BUILD_TYPE=Release -DLSL_UNIXFOLDERS=1 -DCMAKE_INSTALL_PREFIX=install -DLSL_INSTALL_ROOT=LSL/usr $CMakeArgs ../
+- cmake -DLSL_INSTALL_ROOT=${LSL_INSTALL_ROOT} $CMakeArgs ../
 - cmake --build . --config Release --target install
 - cd ..
 matrix:
@@ -26,11 +26,16 @@ matrix:
       before_script:
         - travis_retry wget --quiet ${LSLDIST_URL}/lsl-liblsl{,-dev}_${LSL_VERSION}-${UBUNTU_DIST}_amd64.deb
         - for deb in *.deb; do dpkg -x ${deb} LSL; done
-#    - os: osx
-#      before_install:
-#        - brew install qt
-#        - export CMAKE_PREFIX_PATH=/usr/local/opt/qt/
-#        - export CMAKE_EXE=`which cmake`
+        - export LSL_INSTALL_ROOT=LSL/usr
+        - export CMakeArgs="-DLSL_UNIXFOLDERS=1 ${CMakeArgs}"
+    - os: osx
+      before_install:
+      - brew install qt
+      - export CMAKE_PREFIX_PATH=/usr/local/opt/qt/
+      before_script:
+      - travis_retry wget --quiet ${LSLDIST_URL}/LSL-${LSL_VERSION}-Darwin-liblsl{,-dev}.tar.bz2
+      - mkdir LSL; for file in *.tar.bz2; do tar -xf ${file} -C LSL; done
+      - export LSL_INSTALL_ROOT=LSL
 deploy:
   provider: bintray
   user: tstenner
