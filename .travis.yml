@@ -37,6 +37,7 @@ matrix:
       - mkdir LSL; for file in *.tar.bz2; do tar -xf ${file} -C LSL; done
       - export LSL_INSTALL_ROOT=LSL
 deploy:
+  skip_cleanup: true
   provider: bintray
   user: tstenner
   key:
