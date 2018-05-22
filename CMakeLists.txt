@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5)
 
 project(LabRecorder
     LANGUAGES CXX
-    VERSION 1.1.2)
+	VERSION 1.1.2)
 
 # load LSLAppBoilerplate if not done already
 if(NOT TARGET LSL::lsl)
@@ -46,7 +46,6 @@ add_executable(${target}
     mainwindow.ui
     recording.h
 	recording.cpp
-    targetver.h
 )
 target_compile_features(${target} PRIVATE cxx_auto_type)
 
