@@ -16,35 +16,15 @@
 
 #include <boost/type_traits/is_integral.hpp>
 #include <boost/type_traits/is_floating_point.hpp>
+#include <boost/endian/conversion.hpp>
 
 // support for endianness and binary floating-point storage
 // this import scheme is part of the portable_archive code by
 // christian.pfligersdorffer@eos.info (under boost license)
-#if BOOST_VERSION < 103600
-#include <boost/integer/endian.hpp>
-#include <boost/math/fpclassify.hpp>
-#elif BOOST_VERSION < 104800
-#include <boost/spirit/home/support/detail/integer/endian.hpp>
 #include <boost/spirit/home/support/detail/math/fpclassify.hpp>
-#else
-#include <boost/spirit/home/support/detail/endian/endian.hpp>
-#include <boost/spirit/home/support/detail/math/fpclassify.hpp>
-#endif
 
 // namespace alias fp_classify
-#if BOOST_VERSION < 103800
-namespace fp = boost::math;
-#else
 namespace fp = boost::spirit::math;
-#endif
-
-// namespace alias endian
-#if BOOST_VERSION < 104800
-namespace endian = boost::detail;
-#else
-namespace endian = boost::spirit::detail;
-#endif
-
 
 // the currently defined chunk tags
 enum chunk_tag_t {
@@ -94,17 +74,18 @@ namespace detail{
 	// === writer functions ===
 	// write an integer value in little endian
 	// derived from portable archive code by christian.pfligersdorffer@eos.info (under boost license)
-	template <typename T> typename boost::enable_if<boost::is_integral<T> >::type write_little_endian(std::streambuf *dst,const T &t) {
-		T temp;
-		endian::store_little_endian<T,sizeof(T)>(&temp,t);
-		dst->sputn((char*)(&temp),sizeof(temp));
+	template <typename T> typename boost::enable_if<boost::is_integral<T> >::type write_little_endian(std::streambuf *dst, T t) {
+		boost::endian::native_to_little_inplace(t);
+		dst->sputn((char*)(&t), sizeof(t));
 	}
 
 	// write a floating-point value in little endian
 	// derived from portable archive code by christian.pfligersdorffer@eos.info (under boost license)
-	template <typename T> typename boost::enable_if<boost::is_floating_point<T> >::type write_little_endian(std::streambuf *dst,const T &t) {
+	template <typename T> typename boost::enable_if<boost::is_floating_point<T> >::type write_little_endian(std::streambuf *dst, T t) {
 		using traits = typename fp::detail::fp_traits<T>::type;
 		typename traits::bits bits;
+		static_assert (sizeof(bits) == sizeof(T), "floating point type can't be represented accurately");
+		static_assert (std::numeric_limits<T>::is_iec559, "machine uses unknown floating point format");
 		// remap to bit representation
 		switch (fp::fpclassify(t)) {
 			case FP_NAN: bits = traits::exponent | traits::mantissa; break;
