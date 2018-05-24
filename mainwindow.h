@@ -47,9 +47,7 @@ private slots:
 	void stopRecording(void);
 
 private:
-
-	bool currentlyRecording;
-	recording *currentRecording;
+	std::unique_ptr<recording> currentRecording;
 	
 	int startTime;
 	std::unique_ptr<QTimer> timer;

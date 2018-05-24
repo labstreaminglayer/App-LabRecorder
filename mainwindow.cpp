@@ -42,7 +42,6 @@ ui(new Ui::MainWindow) {
 		QMessageBox::about(this, "About LabRecorder", infostr);
 	});
 
-	currentlyRecording = false;
 	load_config(config_file);
 
 	timer.reset(new QTimer(this));
@@ -53,7 +52,7 @@ ui(new Ui::MainWindow) {
 }
 
 void MainWindow::statusUpdate() const {
-	if(currentlyRecording) {
+	if(currentRecording) {
 		auto elapsed = static_cast<unsigned int>(lsl::local_clock() - startTime);
 
 		std::ifstream in(recFilename, std::ifstream::ate | std::ifstream::binary);
@@ -67,12 +66,12 @@ void MainWindow::statusUpdate() const {
 }
 
 void MainWindow::closeEvent(QCloseEvent *ev) {
-	if (currentlyRecording)
+	if (currentRecording)
 		ev->ignore();
 }
 
 void MainWindow::blockSelected(QListWidgetItem *item) {
-	if(currentlyRecording)
+	if(currentRecording)
 		QMessageBox::information(this, "Still recording", "Please stop recording before switching blocks.", QMessageBox::Ok);
 	else {
 		currentBlock = item->text().toStdString();
@@ -265,7 +264,7 @@ void MainWindow::refreshStreams() {
 
 void MainWindow::startRecording() {
 	
-	if (!currentlyRecording ) {
+	if (!currentRecording ) {
 
 		// automatically refresh streams
 		refreshStreams();
@@ -357,8 +356,7 @@ void MainWindow::startRecording() {
 		for(const std::string& s: watchfor)
 			std::cout << s << std::endl;
 
-		currentRecording = new recording(recFilename, checkedStreams, watchfor, syncOptionsByStreamName, 1);
-		currentlyRecording = true;
+		currentRecording.reset(new recording(recFilename, checkedStreams, watchfor, syncOptionsByStreamName, 1));
 		ui->stopButton->setEnabled(true);
 		ui->startButton->setEnabled(false);
 		startTime = (int)lsl::local_clock();
@@ -371,19 +369,17 @@ void MainWindow::startRecording() {
 
 void MainWindow::stopRecording() {
 
-	if(!currentlyRecording)
+	if(!currentRecording)
 		QMessageBox::information(this, "Not recording", "There is not ongoing recording", QMessageBox::Ok);
 	else {
 
 		// scripted action code here
 
 		try {
-			delete currentRecording;
+			currentRecording = nullptr;
 		}catch(std::exception &e){
 			std::cout << "exception on stop: " << e.what() << std::endl;
 		}
-		
-		currentlyRecording=false;
 		ui->startButton->setEnabled(true);
 		ui->stopButton->setEnabled(false);
 		statusBar()->showMessage("Stopped");
