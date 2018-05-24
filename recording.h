@@ -76,6 +76,7 @@ using offset_list = std::list<std::pair<double,double>>;
 // a map from streamid to offset_list
 using offset_lists = std::map<int,offset_list>;
 
+using streamid_t = uint32_t;
 
 // === writer functions ===
 // write an integer value in little endian
@@ -184,7 +185,7 @@ private:
 	bool unsorted_;							// whether this file may contain unsorted chunks (e.g., of late streams)
 
 	// streamid allocation
-	uint32_t streamid_;				// the highest streamid allocated so far
+	streamid_t streamid_;				// the highest streamid allocated so far
 	boost::mutex streamid_mut_;				// a mutex to protect the streamid
 
 	// phase-of-recording state (headers, streaming data, or footers)
@@ -225,11 +226,11 @@ private:
 	void record_boundaries();
 
 	// record ClockOffset chunks from a given stream
-	void record_offsets(boost::uint32_t streamid, const inlet_p& in);
+	void record_offsets(streamid_t streamid, const inlet_p& in);
 
 
 	// sample collection loop for a numeric stream
-	template<class T> void typed_transfer_loop(boost::uint32_t streamid, double srate, const inlet_p& in, double &first_timestamp, double &last_timestamp, boost::uint64_t &sample_count) {
+	template<class T> void typed_transfer_loop(streamid_t streamid, double srate, const inlet_p& in, double &first_timestamp, double &last_timestamp, boost::uint64_t &sample_count) {
 		thread_p offset_thread;
 		try {
 			// optionally start an offset collection thread for this stream
@@ -325,7 +326,7 @@ private:
 	bool ready_for_footers() const { return streaming_to_finish_ <= 0 && headers_to_finish_ <= 0; }
 
 	/// allocate a fresh stream id
-	uint32_t fresh_streamid() {
+	streamid_t fresh_streamid() {
 		boost::mutex::scoped_lock lock(streamid_mut_);
 		return ++streamid_;
 	}

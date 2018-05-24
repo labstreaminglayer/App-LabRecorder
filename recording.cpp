@@ -99,7 +99,7 @@ void recording::record_from_streaminfo(const lsl::stream_info& src, bool phase_l
 		double first_timestamp, last_timestamp;
 		uint64_t sample_count;
 		// obtain a fresh streamid
-		uint32_t streamid = fresh_streamid();
+		streamid_t streamid = fresh_streamid();
 
 		inlet_p in;
 		lsl::stream_info info;
@@ -231,7 +231,7 @@ void recording::record_boundaries() {
 	}
 }
 
-void recording::record_offsets(uint32_t streamid, const inlet_p& in) {
+void recording::record_offsets(streamid_t streamid, const inlet_p& in) {
 	try {
 		while (!shutdown_) {
 			// sleep for the interval
