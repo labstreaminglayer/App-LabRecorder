@@ -30,12 +30,12 @@ recording::recording(const std::string& filename, const std::vector<lsl::stream_
 	write_chunk(ct_fileheader,"<?xml version=\"1.0\"?><info><version>1.0</version></info>");
 	// create a recording thread for each stream
 	for (const auto& stream: streams)
-		stream_threads_.push_back(std::make_shared<boost::thread>(&recording::record_from_streaminfo, this, stream, true));
+		stream_threads_.emplace_back(new boost::thread(&recording::record_from_streaminfo, this, stream, true));
 	// create a resolve-and-record thread for each item in the watchlist
 	for (const auto& thread: watchfor)
-		stream_threads_.push_back(std::make_shared<boost::thread>(&recording::record_from_query_results, this, thread));
+		stream_threads_.emplace_back(new boost::thread(&recording::record_from_query_results, this, thread));
 	// create a boundary chunk writer thread
-	boundary_thread_ = std::make_shared<boost::thread>(&recording::record_boundaries, this);
+	boundary_thread_.reset(new boost::thread(&recording::record_boundaries, this));
 }
 
 recording::~recording() {
@@ -75,7 +75,7 @@ void recording::record_from_query_results(const std::string& query) {
 					if (!(!result.source_id().empty() && (!known_source_ids.count(result.source_id())))) {
 						std::cout << "Found a new stream named " << result.name() << ", adding it to the recording." << std::endl;
 						// start a new recording thread
-						threads.push_back(std::make_shared<boost::thread>(&recording::record_from_streaminfo, this, result, false));
+						threads.emplace_back(new boost::thread(&recording::record_from_streaminfo, this, result, false));
 						// ... and add it to the lists of known id's
 						known_uids.insert(result.uid());
 						if (!result.source_id().empty())

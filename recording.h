@@ -69,7 +69,7 @@ const boost::posix_time::seconds max_join_wait(5);
 const uint8_t boundary_uuid_c[] = {0x43,0xA5,0x46,0xDC,0xCB,0xF5,0x41,0x0F,0xB3,0x0E,0xD5,0x46,0x73,0x83,0xCB,0xE4};
 
 // pointer to a thread
-using thread_p = std::shared_ptr<boost::thread>;
+using thread_p = std::unique_ptr<boost::thread>;
 // pointer to a stream inlet
 using inlet_p = std::shared_ptr<lsl::stream_inlet>;
 // a list of clock offset estimates (time,value)
