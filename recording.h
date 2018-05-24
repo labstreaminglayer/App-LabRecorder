@@ -5,6 +5,7 @@
 #include <list>
 #include <iostream>
 #include <set>
+#include <atomic>
 
 #include <boost/thread.hpp>
 #include <boost/thread/condition.hpp>
@@ -185,8 +186,7 @@ private:
 	bool unsorted_;							// whether this file may contain unsorted chunks (e.g., of late streams)
 
 	// streamid allocation
-	streamid_t streamid_;				// the highest streamid allocated so far
-	boost::mutex streamid_mut_;				// a mutex to protect the streamid
+	std::atomic<streamid_t> streamid_;				// the highest streamid allocated so far
 
 	// phase-of-recording state (headers, streaming data, or footers)
 	bool shutdown_;							// whether we are trying to shut down
@@ -327,7 +327,6 @@ private:
 
 	/// allocate a fresh stream id
 	streamid_t fresh_streamid() {
-		boost::mutex::scoped_lock lock(streamid_mut_);
 		return ++streamid_;
 	}
 
