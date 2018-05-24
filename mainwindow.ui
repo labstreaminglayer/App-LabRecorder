@@ -211,7 +211,7 @@
     <property name="title">
      <string>He&amp;lp</string>
     </property>
-    <addaction name="actionComing_Soon"/>
+    <addaction name="actionAbout"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuHelp"/>
@@ -219,7 +219,7 @@
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionLoadConfig">
    <property name="text">
-    <string>Load configuration...</string>
+    <string>&amp;Load configuration...</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+L</string>
@@ -227,7 +227,7 @@
   </action>
   <action name="actionQuit">
    <property name="text">
-    <string>Quit</string>
+    <string>&amp;Quit</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
@@ -237,10 +237,8 @@
    <property name="text">
     <string>About</string>
    </property>
-  </action>
-  <action name="actionComing_Soon">
-   <property name="text">
-    <string>Coming Soon... :-)</string>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
    </property>
   </action>
  </widget>

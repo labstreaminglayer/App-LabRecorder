@@ -36,6 +36,11 @@ ui(new Ui::MainWindow) {
 	connect(ui->refreshButton, &QPushButton::clicked, this, &MainWindow::refreshStreams);
 	connect(ui->startButton, &QPushButton::clicked, this, &MainWindow::startRecording);
 	connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::stopRecording);
+	connect(ui->actionAbout, &QAction::triggered, [this](){
+		QString infostr = QStringLiteral("LSL library version: ") + QString::number(lsl::library_version()) +
+		        "\nLSL library info:" + lsl::lsl_library_info();
+		QMessageBox::about(this, "About LabRecorder", infostr);
+	});
 
 	currentlyRecording = false;
 	load_config(config_file);
