@@ -14,15 +14,23 @@
 
 #include <lsl_cpp.h>
 
-#include <boost/type_traits/is_integral.hpp>
-#include <boost/type_traits/is_floating_point.hpp>
+#include <type_traits>
+#if BOOST_VERSION >= 105800
 #include <boost/endian/conversion.hpp>
+template<typename T> void native_to_little_inplace(T& t){ boost::endian::native_to_little_inplace(t); }
+#else
+#include <boost/spirit/home/support/detail/integer/endian.hpp>
+template <typename T> void native_to_little_inplace(T& t) {
+	T temp;
+	endian::store_little_endian<T, sizeof(T)>(&temp, t);
+	t = temp;
+}
+#endif
 
 // support for endianness and binary floating-point storage
 // this import scheme is part of the portable_archive code by
 // christian.pfligersdorffer@eos.info (under boost license)
 #include <boost/spirit/home/support/detail/math/fpclassify.hpp>
-
 // namespace alias fp_classify
 namespace fp = boost::spirit::math;
 
@@ -69,73 +77,75 @@ using offset_list = std::list<std::pair<double,double>>;
 using offset_lists = std::map<int,offset_list>;
 
 
-namespace detail{
-
-	// === writer functions ===
-	// write an integer value in little endian
-	// derived from portable archive code by christian.pfligersdorffer@eos.info (under boost license)
-	template <typename T> typename boost::enable_if<boost::is_integral<T> >::type write_little_endian(std::streambuf *dst, T t) {
-		boost::endian::native_to_little_inplace(t);
-		dst->sputn((char*)(&t), sizeof(t));
-	}
-
-	// write a floating-point value in little endian
-	// derived from portable archive code by christian.pfligersdorffer@eos.info (under boost license)
-	template <typename T> typename boost::enable_if<boost::is_floating_point<T> >::type write_little_endian(std::streambuf *dst, T t) {
-		using traits = typename fp::detail::fp_traits<T>::type;
-		typename traits::bits bits;
-		static_assert (sizeof(bits) == sizeof(T), "floating point type can't be represented accurately");
-		static_assert (std::numeric_limits<T>::is_iec559, "machine uses unknown floating point format");
-		// remap to bit representation
-		switch (fp::fpclassify(t)) {
-			case FP_NAN: bits = traits::exponent | traits::mantissa; break;
-			case FP_INFINITE: bits = traits::exponent | (t<0) * traits::sign; break;
-			case FP_SUBNORMAL: assert(std::numeric_limits<T>::has_denorm);
-			case FP_ZERO: // note that floats can be ±0.0
-			case FP_NORMAL: traits::get_bits(t, bits); break;
-			default: bits = 0; break;
-		}
-		write_little_endian(dst,bits);
-	}
-
-	// write a variable-length integer (int8, int32, or int64)
-	inline void write_varlen_int(std::streambuf *dst, uint64_t val) {
-		if (val < 256) {
-			dst->sputc(1);
-			dst->sputc(static_cast<uint8_t>(val));
-		} else
-			if (val <= 4294967295) {
-				dst->sputc(4);
-				write_little_endian(dst, static_cast<uint32_t>(val));
-			} else {
-				dst->sputc(8);
-				write_little_endian(dst, static_cast<uint64_t>(val));
-			}
-	}
-
-	// store a sample's values to a stream (numeric version) */
-	template<class T> inline void write_sample_values(std::streambuf *dst, const std::vector<T> &sample) {
-		// [Value1] .. [ValueN] */
-		for(const T s: sample)
-			write_little_endian(dst, s);
-	}
-
-	// store a sample's values to a stream (string version)
-	template<> inline void write_sample_values(std::streambuf *dst, const std::vector<std::string> &sample) {
-	// [Value1] .. [ValueN] */
-		for(const std::string& s: sample) {
-			// [NumLengthBytes], [Length] (as varlen int)
-			write_varlen_int(dst, s.size());
-			// [StringContent] */
-			dst->sputn(s.data(), s.size());
-		}
-	}
-
+// === writer functions ===
+// write an integer value in little endian
+// derived from portable archive code by christian.pfligersdorffer@eos.info (under boost license)
+template <typename T>
+typename std::enable_if<std::is_integral<T>::value>::type write_little_endian(std::streambuf* dst, T t) {
+	native_to_little_inplace(t);
+	dst->sputn((char*)(&t), sizeof(t));
 }
 
-using namespace detail;
+// write a floating-point value in little endian
+// derived from portable archive code by christian.pfligersdorffer@eos.info (under boost license)
+template <typename T>
+typename std::enable_if<std::is_floating_point<T>::value>::type
+write_little_endian(std::streambuf* dst, T t) {
+	//Get a type big enough to hold
+	using traits = typename fp::detail::fp_traits<T>::type;
+	static_assert(sizeof(typename traits::bits) == sizeof(T), "floating point type can't be represented accurately");
 
-//------------------------------------------------------
+	//Just copy the value if it's in the standard IEC 559 format
+	if(std::numeric_limits<T>::is_iec559)
+		write_little_endian(dst, *reinterpret_cast<typename traits::bits*>(&t));
+	else {
+		typename traits::bits bits;
+		// remap to bit representation
+		switch (fp::fpclassify(t)) {
+		case FP_NAN: bits = traits::exponent | traits::mantissa; break;
+		case FP_INFINITE: bits = traits::exponent | (t < 0) * traits::sign; break;
+		case FP_SUBNORMAL:
+			static_assert(std::numeric_limits<T>::has_denorm, "denormalized floats not supported");
+		case FP_ZERO: // note that floats can be ±0.0
+		case FP_NORMAL: traits::get_bits(t, bits); break;
+		default: bits = 0; break;
+		}
+		write_little_endian(dst, bits);
+	}
+}
+
+// write a variable-length integer (int8, int32, or int64)
+inline void write_varlen_int(std::streambuf* dst, uint64_t val) {
+	if (val < 256) {
+		dst->sputc(1);
+		dst->sputc(static_cast<uint8_t>(val));
+	} else if (val <= 4294967295) {
+		dst->sputc(4);
+		write_little_endian(dst, static_cast<uint32_t>(val));
+	} else {
+		dst->sputc(8);
+		write_little_endian(dst, static_cast<uint64_t>(val));
+	}
+}
+
+// store a sample's values to a stream (numeric version) */
+template <class T>
+inline void write_sample_values(std::streambuf* dst, const std::vector<T>& sample) {
+	// [Value1] .. [ValueN] */
+	for (const T s : sample) write_little_endian(dst, s);
+}
+
+// store a sample's values to a stream (string version)
+template <>
+inline void write_sample_values(std::streambuf* dst, const std::vector<std::string>& sample) {
+	// [Value1] .. [ValueN] */
+	for (const std::string& s : sample) {
+		// [NumLengthBytes], [Length] (as varlen int)
+		write_varlen_int(dst, s.size());
+		// [StringContent] */
+		dst->sputn(s.data(), s.size());
+	}
+}
 
 /**
 * A recording process using the lab streaming layer.
