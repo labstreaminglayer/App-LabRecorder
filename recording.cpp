@@ -5,6 +5,8 @@
 #include <boost/iostreams/filter/zlib.hpp>
 #endif
 
+static const std::string boundary_uuid(reinterpret_cast<const char*>(boundary_uuid_c), 16);
+
 recording::recording(const std::string& filename, const std::vector<lsl::stream_info>& streams, const std::vector<std::string>& watchfor, std::map<std::string, int> syncOptions, bool collect_offsets):
     offsets_enabled_(collect_offsets),
     unsorted_(false),
@@ -219,7 +221,7 @@ void recording::record_boundaries() {
 			// sleep for the interval
 			boost::this_thread::sleep(boundary_interval);
 			// write a [Boundary] chunk...
-			write_chunk(ct_boundary, std::string((char*)&boundary_uuid[0],16));
+			write_chunk(ct_boundary, boundary_uuid);
 		}
 	}
 	catch(boost::thread_interrupted &) {
