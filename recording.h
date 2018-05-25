@@ -1,29 +1,28 @@
 #ifndef RECORDING_H
 #define RECORDING_H
 
-#include <map>
-#include <list>
-#include <iostream>
-#include <set>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <iostream>
+#include <list>
+#include <map>
+#include <mutex>
+#include <thread>
+#include <type_traits>
 
-#include <boost/thread.hpp>
-#include <boost/thread/condition.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
-#include <boost/algorithm/string.hpp>
 
 #include <lsl_cpp.h>
 
-#include <type_traits>
 #if BOOST_VERSION >= 105800
 #include <boost/endian/conversion.hpp>
-template<typename T> void native_to_little_inplace(T& t){ boost::endian::native_to_little_inplace(t); }
+using boost::endian::native_to_little_inplace;
 #else
-#include <boost/spirit/home/support/detail/integer/endian.hpp>
+#include <boost/spirit/home/support/detail/endian/endian.hpp>
 template <typename T> void native_to_little_inplace(T& t) {
 	T temp;
-	endian::store_little_endian<T, sizeof(T)>(&temp, t);
+	boost::spirit::detail::store_little_endian<T, sizeof(T)>(&temp, t);
 	t = temp;
 }
 #endif
@@ -46,30 +45,29 @@ enum chunk_tag_t {
 	ct_undefined = 0
 };
 
-
 // timings in the recording process (e.g., rate of boundary chunks and for cases where a stream hangs)
-// approx. interval between boundary chunks, in seconds
-const auto boundary_interval = boost::posix_time::seconds(10);
-// approx. interval between offset measurements, in seconds
-const auto offset_interval = boost::posix_time::seconds(5);
+// approx. interval between boundary chunks
+const auto boundary_interval = std::chrono::seconds(10);
+// approx. interval between offset measurements
+const auto offset_interval = std::chrono::seconds(5);
 // approx. interval between resolves for outstanding streams on the watchlist, in seconds
 const double resolve_interval = 5;
-// approx. interval between resolves for outstanding streams on the watchlist, in seconds
-const boost::posix_time::milliseconds chunk_interval(500);
-// maximum waiting time for moving past the headers phase while recording, in seconds
-const auto max_headers_wait = boost::posix_time::seconds(10);
-// maximum waiting time for moving into the footers phase while recording, in seconds
-const auto max_footers_wait = boost::posix_time::seconds(2);
+// approx. interval between resolves for outstanding streams on the watchlist
+const  auto chunk_interval = std::chrono::milliseconds(500);
+// maximum waiting time for moving past the headers phase while recording
+const auto max_headers_wait = std::chrono::seconds(10);
+// maximum waiting time for moving into the footers phase while recording
+const auto max_footers_wait = std::chrono::seconds(2);
 // maximum waiting time for subscribing to a stream, in seconds (if exceeded, stream subscription will take place later)
 const double max_open_wait = 5;
 // maximum time that we wait to join a thread, in seconds
-const boost::posix_time::seconds max_join_wait(5);
+const std::chrono::seconds max_join_wait(5);
 
 // the signature of the boundary chunk (next chunk begins right after this)
 const uint8_t boundary_uuid_c[] = {0x43,0xA5,0x46,0xDC,0xCB,0xF5,0x41,0x0F,0xB3,0x0E,0xD5,0x46,0x73,0x83,0xCB,0xE4};
 
 // pointer to a thread
-using thread_p = std::unique_ptr<boost::thread>;
+using thread_p = std::unique_ptr<std::thread>;
 // pointer to a stream inlet
 using inlet_p = std::shared_ptr<lsl::stream_inlet>;
 // a list of clock offset estimates (time,value)
@@ -180,7 +178,7 @@ public:
 private:
 	// the file stream
 	boost::iostreams::filtering_ostream file_;	// the file output stream
-	boost::mutex chunk_mut_;
+	std::mutex chunk_mut_;
 	// static information
 	bool offsets_enabled_;					// whether to collect time offset information alongside with the stream contents
 	bool unsorted_;							// whether this file may contain unsorted chunks (e.g., of late streams)
@@ -189,21 +187,21 @@ private:
 	std::atomic<streamid_t> streamid_;				// the highest streamid allocated so far
 
 	// phase-of-recording state (headers, streaming data, or footers)
-	bool shutdown_;							// whether we are trying to shut down
+	std::atomic<bool> shutdown_;			// whether we are trying to shut down
 	uint32_t headers_to_finish_;		// the number of streams that still need to write their header (i.e., are not yet ready to write streaming content)
 	uint32_t streaming_to_finish_;	// the number of streams that still need to finish the streaming phase (i.e., are not yet ready for writing their footer)
-	boost::condition ready_for_streaming_;	// condition variable signaling that all streams have finished writing their headers and are now ready to write streaming content
-	boost::condition ready_for_footers_;	// condition variable signaling that all streams have finished their recording jobs and are now ready to write a footer
-	boost::mutex phase_mut_;				// a mutex to protect the phase state
+	std::condition_variable ready_for_streaming_;	// condition variable signaling that all streams have finished writing their headers and are now ready to write streaming content
+	std::condition_variable ready_for_footers_;		// condition variable signaling that all streams have finished their recording jobs and are now ready to write a footer
+	std::mutex phase_mut_;				// a mutex to protect the phase state
 
 	// data structure to collect the time offsets for every stream
 	offset_lists offset_lists_;				// the clock offset lists for each stream (to be written into the footer)
-	boost::mutex offset_mut_;				// a mutex to protect the offset lists
+	std::mutex offset_mut_;				// a mutex to protect the offset lists
 
 
 
 	// data for shutdown / final joining
-	std::vector<thread_p> stream_threads_;	// the spawned stream handling threads
+	std::list<thread_p> stream_threads_;	// the spawned stream handling threads
 	thread_p boundary_thread_;				// the spawned boundary-recording thread
 
 	// for enabling online sync options
@@ -226,81 +224,11 @@ private:
 	void record_boundaries();
 
 	// record ClockOffset chunks from a given stream
-	void record_offsets(streamid_t streamid, const inlet_p& in);
+	void record_offsets(streamid_t streamid, const inlet_p& in, std::atomic<bool>& offset_shutdown) noexcept;
 
 
 	// sample collection loop for a numeric stream
-	template<class T> void typed_transfer_loop(streamid_t streamid, double srate, const inlet_p& in, double &first_timestamp, double &last_timestamp, boost::uint64_t &sample_count) {
-		thread_p offset_thread;
-		try {
-			// optionally start an offset collection thread for this stream
-			if (offsets_enabled_)
-				offset_thread.reset(new boost::thread(&recording::record_offsets,this,streamid,in));
-
-			first_timestamp = -1.0;
-			last_timestamp = 0.0;
-			sample_count = 0;
-			double sample_interval = srate ? 1.0/srate : 0;
-
-			// temporary data
-			std::vector<std::vector<T> > chunk;
-			std::vector<double> timestamps;
-			while (true) {
-				// check for shutdown condition
-				{
-					boost::mutex::scoped_lock lock(phase_mut_);
-					if (shutdown_)
-						break;
-				}
-
-				// get a chunk from the stream
-				if (in->pull_chunk(chunk,timestamps)) {
-					if (first_timestamp == -1.0)
-						first_timestamp = timestamps[0];
-					// generate [Samples] chunk contents...
-					std::ostringstream content;
-					// [StreamId]
-					write_little_endian(content.rdbuf(),streamid);
-					// [NumSamplesBytes], [NumSamples]
-					write_varlen_int(content.rdbuf(),chunk.size());
-					// for each sample...
-					for (std::size_t s=0;s<chunk.size();s++) {
-						// if the time stamp can be deduced from the previous one...
-						if (last_timestamp + sample_interval == timestamps[s]) {
-							// [TimeStampBytes] (0 for no time stamp)
-							content.rdbuf()->sputc(0);
-						} else {
-							// [TimeStampBytes]
-							content.rdbuf()->sputc(8);
-							// [TimeStamp]
-							write_little_endian(content.rdbuf(),timestamps[s]);
-						}
-						// [Sample1] .. [SampleN]
-						write_sample_values<T>(content.rdbuf(),chunk[s]);
-						last_timestamp = timestamps[s];
-						sample_count++;
-					}
-					// write the actual chunk
-					write_chunk(ct_samples,content.str());
-				} else
-					boost::this_thread::sleep(chunk_interval);
-
-			}
-
-			// terminate the offset collection thread, too
-			if (offset_thread) {
-				offset_thread->interrupt();
-				offset_thread->timed_join(max_join_wait);
-			}
-		}
-		catch(std::exception &) {
-			if (offset_thread) {
-				offset_thread->interrupt();
-				offset_thread->timed_join(max_join_wait);
-			}
-			throw;
-		}
-	}
+	template<class T> void typed_transfer_loop(streamid_t streamid, double srate, const inlet_p& in, double &first_timestamp, double &last_timestamp, uint64_t &sample_count);
 
 	// write a generic chunk
 	void write_chunk(chunk_tag_t tag, const std::string &content);

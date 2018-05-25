@@ -49,7 +49,8 @@ add_executable(${target}
 )
 target_compile_features(${target} PRIVATE cxx_auto_type)
 
-find_package(Boost REQUIRED COMPONENTS filesystem iostreams thread)
+find_package(Threads REQUIRED)
+find_package(Boost REQUIRED COMPONENTS filesystem iostreams)
 set(zlib_libs "")
 if(WIN32)
 	find_package(Boost OPTIONAL_COMPONENTS zlib QUIET)
@@ -72,7 +73,7 @@ target_link_libraries(${target}
     Qt5::Network
     Boost::filesystem
     Boost::iostreams
-    Boost::thread
+    Threads::Threads
     ${zlib_libs}
     LSL::lsl
 )
