@@ -9,34 +9,21 @@ environment:
   ARCH: x64
   CMakeArgs: ""
 install:
-- cmd: >-
-    appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -FileName ninja.zip
-
-    appveyor DownloadFile https://bintray.com/labstreaminglayer/LSL/download_file?file_path=liblsl_x64_1.12.zip -FileName liblsl_x64.zip
-
-    7z x ninja.zip -oC:\projects\deps\ninja > nul
-
-    7z l liblsl_x64.zip
-
-    7z x liblsl_x64.zip
-
-    set PATH=C:\projects\deps\ninja;%PATH%
-
-    ninja --version
+- cmd: appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -FileName ninja.zip
+- cmd: appveyor DownloadFile https://bintray.com/labstreaminglayer/LSL/download_file?file_path=liblsl-1.12.0-Win64-MSVC%VCVER%.7z -FileName liblsl_x64.7z
+- cmd: 7z x ninja.zip -oC:\projects\deps\ninja > nul
+- cmd: 7z x liblsl_x64.7z
+- cmd: set PATH=C:\projects\deps\ninja;%PATH%
+- cmd: ninja --version
 build_script:
-- cmd: >-
-    call "C:\Program Files (x86)\Microsoft Visual Studio %VCVER%\VC\vcvarsall.bat" %ARCH%
-
-    mkdir build
-
-    cd build
-
-    cmake -G Ninja -DQt5_DIR=C:/Qt/%QTVER%/%QTCOMPILER%/lib/cmake/Qt5 -DBOOST_ROOT=C:/Libraries/boost_1_63_0 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=install -DLSL_INSTALL_ROOT=LSL/ %CMakeArgs% ../
-
-    cmake --build . --config Release --target install
+- cmd: call "C:\Program Files (x86)\Microsoft Visual Studio %VCVER%\VC\vcvarsall.bat" %ARCH%
+- mkdir build
+- cd build
+- cmd: cmake -G Ninja -DQt5_DIR=C:/Qt/%QTVER%/%QTCOMPILER%/lib/cmake/Qt5 -DBOOST_ROOT=C:/Libraries/boost_1_63_0 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=install -DLSL_INSTALL_ROOT=LSL/ %CMakeArgs% ../
+- cmake --build . --config Release --target install
 artifacts:
 - path: build/install
-  name: ${APPVEYOR_PROJECT_NAME}_%ARCH%_${APPVEYOR_BUILD_VERSION}
+  name: LabRecorder-1.12.0-Win64.7z
 deploy:
 - provider: BinTray
   username: tstenner

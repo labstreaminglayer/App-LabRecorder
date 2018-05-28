@@ -2,9 +2,9 @@ language: cpp
 dist: trusty
 compiler: clang
 env:
-  LSLDIST_URL="https://dl.bintray.com/labstreaminglayer/LSL/"
+  LSLDIST_URL="https://dl.bintray.com/labstreaminglayer/LSL"
   UBUNTU_DIST="trusty"
-  LSL_VERSION="1.1.2"
+  LSL_VERSION="1.12.0"
   - CMakeArgs=""
 script:
 - mkdir -p build/install
@@ -26,8 +26,8 @@ matrix:
             - libboost-filesystem-dev
             - libboost-iostreams-dev
       before_script:
-        - travis_retry wget --quiet ${LSLDIST_URL}/lsl-liblsl{,-dev}_${LSL_VERSION}-${UBUNTU_DIST}_amd64.deb
-        - for deb in *.deb; do dpkg -x ${deb} LSL; done
+        - travis_retry wget ${LSLDIST_URL}/liblsl-${LSL_VERSION}-Linux64-${UBUNTU_DIST}.deb
+        - dpkg -x *.deb LSL
         - export LSL_INSTALL_ROOT=LSL/usr
         - export CMakeArgs="-DLSL_UNIXFOLDERS=1 ${CMakeArgs}"
     - os: osx
@@ -35,8 +35,8 @@ matrix:
       - brew install qt
       - export CMAKE_PREFIX_PATH=/usr/local/opt/qt/
       before_script:
-      - travis_retry wget --quiet ${LSLDIST_URL}/LSL-${LSL_VERSION}-Darwin-liblsl{,-dev}.tar.bz2
-      - mkdir LSL; for file in *.tar.bz2; do tar -xf ${file} -C LSL; done
+      - travis_retry wget ${LSLDIST_URL}/liblsl-${LSL_VERSION}-OSX64.tar.bz2
+      - mkdir LSL; tar -xf *.tar.bz2 -C LSL
       - export LSL_INSTALL_ROOT=LSL
 deploy:
   skip_cleanup: true
