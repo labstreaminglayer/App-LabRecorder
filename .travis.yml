@@ -12,7 +12,7 @@ script:
 - cmake --version
 - cmake -DLSL_INSTALL_ROOT=${LSL_INSTALL_ROOT} $CMakeArgs ../
 - cmake --build . --config Release --target install
-- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then for app in *.app; do ${CMAKE_PREFIX_PATH}/bin/macdeployqt ${app} -dmg; done; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then for app in *.app; do ${CMAKE_PREFIX_PATH}/bin/macdeployqt ${app} -dmg; mv "${app%.app}.dmg" "${app%.app}-${LSL_VERSION}-OSX64.dmg}"; done; fi
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cpack; fi
 - cd ..
 matrix:
