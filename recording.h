@@ -114,39 +114,6 @@ write_little_endian(std::streambuf* dst, T t) {
 	}
 }
 
-// write a variable-length integer (int8, int32, or int64)
-inline void write_varlen_int(std::streambuf* dst, uint64_t val) {
-	if (val < 256) {
-		dst->sputc(1);
-		dst->sputc(static_cast<uint8_t>(val));
-	} else if (val <= 4294967295) {
-		dst->sputc(4);
-		write_little_endian(dst, static_cast<uint32_t>(val));
-	} else {
-		dst->sputc(8);
-		write_little_endian(dst, static_cast<uint64_t>(val));
-	}
-}
-
-// store a sample's values to a stream (numeric version) */
-template <class T>
-inline void write_sample_values(std::streambuf* dst, const std::vector<T>& sample) {
-	// [Value1] .. [ValueN] */
-	for (const T s : sample) write_little_endian(dst, s);
-}
-
-// store a sample's values to a stream (string version)
-template <>
-inline void write_sample_values(std::streambuf* dst, const std::vector<std::string>& sample) {
-	// [Value1] .. [ValueN] */
-	for (const std::string& s : sample) {
-		// [NumLengthBytes], [Length] (as varlen int)
-		write_varlen_int(dst, s.size());
-		// [StringContent] */
-		dst->sputn(s.data(), s.size());
-	}
-}
-
 /**
 * A recording process using the lab streaming layer.
 * An instance of this class is created with a list of stream references to record from.

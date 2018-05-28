@@ -73,6 +73,42 @@ inline void timed_join_or_detach(std::list<thread_p>& threads, std::chrono::mill
 	}
 }
 
+// Utilies for writing binary data to files
+
+// write a variable-length integer (int8, int32, or int64)
+inline void write_varlen_int(std::streambuf* dst, uint64_t val) {
+	if (val < 256) {
+		dst->sputc(1);
+		dst->sputc(static_cast<uint8_t>(val));
+	} else if (val <= 4294967295) {
+		dst->sputc(4);
+		write_little_endian(dst, static_cast<uint32_t>(val));
+	} else {
+		dst->sputc(8);
+		write_little_endian(dst, static_cast<uint64_t>(val));
+	}
+}
+
+// store a sample's values to a stream (numeric version) */
+template <class T>
+inline void write_sample_values(std::streambuf* dst, const std::vector<T>& sample) {
+	// [Value1] .. [ValueN] */
+	for (const T s : sample) write_little_endian(dst, s);
+}
+
+// store a sample's values to a stream (string version)
+template <>
+inline void write_sample_values(std::streambuf* dst, const std::vector<std::string>& sample) {
+	// [Value1] .. [ValueN] */
+	for (const std::string& s : sample) {
+		// [NumLengthBytes], [Length] (as varlen int)
+		write_varlen_int(dst, s.size());
+		// [StringContent] */
+		dst->sputn(s.data(), s.size());
+	}
+}
+
+
 
 recording::recording(const std::string& filename, const std::vector<lsl::stream_info>& streams, const std::vector<std::string>& watchfor, std::map<std::string, int> syncOptions, bool collect_offsets):
     offsets_enabled_(collect_offsets),
