@@ -19,11 +19,6 @@ if(NOT TARGET LSL::lsl)
 endif()
 
 # GENERAL CONFIG #
-cmake_policy(SET CMP0028 NEW) # ENABLE CMP0028: Double colon in target name means ALIAS or IMPORTED target.
-cmake_policy(SET CMP0054 NEW) # ENABLE CMP0054: Only interpret if() arguments as variables or keywords when unquoted.
-cmake_policy(SET CMP0063 NEW) # ENABLE CMP0063: Honor visibility properties for all target types.
-cmake_policy(SET CMP0042 NEW) # ENABLE CMP0042: MACOSX_RPATH is enabled by default.
-
 # Meta information about the project
 set(META_PROJECT_DESCRIPTION "Record LabStreamingLayer streams to XDF data file.")
 
@@ -33,7 +28,7 @@ find_package(Qt5 REQUIRED COMPONENTS Network Widgets)
 # APPLICATION #
 
 # Target name
-set(target LabRecorder)
+set(target ${PROJECT_NAME})
 
 # Build executable
 add_executable(${target}

@@ -22,7 +22,6 @@ matrix:
         apt:
           packages:
             - qt5-default
-            - libboost-thread-dev
             - libboost-filesystem-dev
             - libboost-iostreams-dev
       before_script:
