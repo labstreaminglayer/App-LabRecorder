@@ -11,8 +11,13 @@
 #include <thread>
 #include <type_traits>
 
+#ifdef XDFZ_SUPPORT
 #include <boost/iostreams/filtering_stream.hpp>
-
+using outfile_t = boost::iostreams::filtering_ostream;
+#else
+#include <fstream>
+using outfile_t = std::ofstream;
+#endif
 #include <lsl_cpp.h>
 
 #if BOOST_VERSION >= 105800
@@ -144,7 +149,7 @@ public:
 
 private:
 	// the file stream
-	boost::iostreams::filtering_ostream file_;	// the file output stream
+	outfile_t file_;	// the file output stream
 	std::mutex chunk_mut_;
 	// static information
 	bool offsets_enabled_;					// whether to collect time offset information alongside with the stream contents

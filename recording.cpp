@@ -1,10 +1,12 @@
 #include "recording.h"
 
-#include <boost/iostreams/device/file_descriptor.hpp>
 #include <set>
 #include <sstream>
 #ifdef XDFZ_SUPPORT
+#define BOOST_IOSTREAMS_NO_LIB
+#include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #endif
 
 static const std::string boundary_uuid(reinterpret_cast<const char*>(boundary_uuid_c), 16);
@@ -124,8 +126,11 @@ recording::recording(const std::string& filename, const std::vector<lsl::stream_
 #ifdef XDFZ_SUPPORT
 	if (boost::iends_with(filename,".xdfz"))
 		file_.push(boost::iostreams::zlib_compressor());
-#endif
 	file_.push(boost::iostreams::file_descriptor_sink(filename,std::ios::binary | std::ios::trunc));
+#else
+	file_.open(filename, std::ios::binary | std::ios::trunc)
+#endif
+
 	std::cout << "done." << std::endl;
 	// [MagicCode]
 	file_ << "XDF:";
