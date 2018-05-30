@@ -23,7 +23,7 @@ build_script:
 - cmake --build . --config Release --target install
 artifacts:
 - path: build/install
-  name: LabRecorder-1.12.0-Win64.7z
+  name: LabRecorder-1.12.0-Win64
 deploy:
 - provider: BinTray
   username: tstenner
