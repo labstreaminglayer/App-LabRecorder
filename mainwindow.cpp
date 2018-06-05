@@ -227,7 +227,7 @@ void MainWindow::startRecording() {
 		recFilename = ui->locationEdit->text();
 		int pos_n = recFilename.indexOf("%n");
 		if(pos_n != -1)
-			recFilename.replace(pos_n, 2, ui->experimentNumberSpin->value());
+			recFilename.replace(pos_n, 2, QString::number(ui->experimentNumberSpin->value()));
 
 		int pos_b = recFilename.indexOf("%b");
 		if(pos_b != -1) // check to make sure it is there
