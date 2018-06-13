@@ -128,7 +128,7 @@ recording::recording(const std::string& filename, const std::vector<lsl::stream_
 		file_.push(boost::iostreams::zlib_compressor());
 	file_.push(boost::iostreams::file_descriptor_sink(filename,std::ios::binary | std::ios::trunc));
 #else
-	file_.open(filename, std::ios::binary | std::ios::trunc)
+	file_.open(filename, std::ios::binary | std::ios::trunc);
 #endif
 
 	std::cout << "done." << std::endl;
