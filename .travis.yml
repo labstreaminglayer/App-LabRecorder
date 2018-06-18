@@ -22,7 +22,6 @@ matrix:
         apt:
           packages:
             - qt5-default
-            - libboost-filesystem-dev
             - libboost-iostreams-dev
       before_script:
         - travis_retry wget ${LSLDIST_URL}/liblsl-${LSL_VERSION}-Linux64-${UBUNTU_DIST}.deb

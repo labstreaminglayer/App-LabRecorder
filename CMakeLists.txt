@@ -62,8 +62,8 @@ target_link_libraries(${target}
     LSL::lsl
 )
 
-# Enable xdfz support if Boost.zlib (Windows) or plain zlib (Unix) was found
-if(ZLIB_LIBRARIES)
+# Enable xdfz support if Boost::iostreams and Boost.zlib (Windows) or plain zlib (Unix) was found
+if(ZLIB_LIBRARIES AND TARGET Boost::iostreams)
 	message(STATUS "Found zlib, enabling support for xdfz files")
 	target_link_libraries(${target}
 		PRIVATE

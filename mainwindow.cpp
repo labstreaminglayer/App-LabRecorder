@@ -110,7 +110,6 @@ void MainWindow::load_config(QString filename) {
 			std::cout << "val = " << val << std::endl;
 		}
 
-
 		// ----------------------------
 		// recording location
 		// ----------------------------

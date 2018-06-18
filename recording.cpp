@@ -3,7 +3,6 @@
 #include <set>
 #include <sstream>
 #ifdef XDFZ_SUPPORT
-#define BOOST_IOSTREAMS_NO_LIB
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/algorithm/string/predicate.hpp>

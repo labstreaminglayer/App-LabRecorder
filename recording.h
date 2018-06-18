@@ -88,7 +88,8 @@ using streamid_t = uint32_t;
 template <typename T>
 typename std::enable_if<std::is_integral<T>::value>::type write_little_endian(std::streambuf* dst, T t) {
 	native_to_little_inplace(t);
-	dst->sputn((char*)(&t), sizeof(t));
+	if(sizeof(T) == 1) dst->sputc(t);
+	else dst->sputn((char*)(&t), sizeof(t));
 }
 
 // write a floating-point value in little endian
