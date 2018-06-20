@@ -55,12 +55,21 @@ target_link_libraries(${target}
     LSL::lsl
 )
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED On)
+
 # Test for floating point format and endianness
 try_run(IS_LITTLE_ENDIAN IS_IEC559
 	${CMAKE_CURRENT_BINARY_DIR}
-	"${CMAKE_CURRENT_SOURCE_DIR}/test_iec559_and_little_endian.cpp")
+	"${CMAKE_CURRENT_SOURCE_DIR}/test_iec559_and_little_endian.cpp"
+	CMAKE_FLAGS "-DCMAKE_CXX_STANDARD=14" "-DCMAKE_CXX_STANDARD_REQUIRED=On"
+	COMPILE_OUTPUT_VARIABLE IEC559_COMPILE)
 message(STATUS "Little endian: ${IS_LITTLE_ENDIAN}")
 message(STATUS "IEC559: ${IS_IEC559}")
+if(NOT IS_IEC559)
+	message(WARNING "IEC559 test: ${IEC559_COMPILE}")
+endif()
+
 
 if(LABRECORDER_BOOST_TYPE_CONVERSIONS OR NOT IS_LITTLE_ENDIAN OR NOT IS_IEC559)
 	message(STATUS "Trying to use Boost for type conversions")

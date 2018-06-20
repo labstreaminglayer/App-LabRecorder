@@ -74,12 +74,12 @@ static_assert(sizeof(float) == 4, "Unexpected float size!");
 static_assert(sizeof(double) == 8, "Unexpected double size!");
 
 template <typename T>
-typename std::enable_if_t<sizeof(T) == 1> write_little_endian(std::streambuf* dst, T t) {
+typename std::enable_if<sizeof(T) == 1>::type write_little_endian(std::streambuf* dst, T t) {
 	dst->sputc(t);
 }
 
 template <typename T>
-typename std::enable_if_t<sizeof(T) >= 2> write_little_endian(std::streambuf* dst, T t) {
+typename std::enable_if<sizeof(T) >= 2>::type write_little_endian(std::streambuf* dst, T t) {
 	dst->sputn(reinterpret_cast<const char*>(&t), sizeof(T));
 }
 
