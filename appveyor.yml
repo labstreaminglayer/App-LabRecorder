@@ -5,14 +5,14 @@ shallow_clone: true
 environment:
   lslversion: 1.12.0
   VCVER: 14.0
-  QTVER: 5.10.1
+  QTVER: 5.11.0
   QTCOMPILER: msvc2015_64
   ARCH: x64
   CMakeArgs: ""
   DODEPLOY: false
 install:
 - cmd: appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -FileName ninja.zip
-- cmd: appveyor DownloadFile https://bintray.com/labstreaminglayer/LSL/download_file?file_path=liblsl-%lslversion%-Win64-MSVC%VCVER%.7z -FileName liblsl_x64.7z
+- cmd: appveyor DownloadFile https://dl.bintray.com/labstreaminglayer/LSL/liblsl-%lslversion%-Win64-MSVC%VCVER%.7z -FileName liblsl_x64.7z
 - cmd: 7z x ninja.zip -oC:\projects\deps\ninja > nul
 - cmd: 7z x liblsl_x64.7z
 - cmd: set PATH=C:\projects\deps\ninja;%PATH%
@@ -21,7 +21,7 @@ build_script:
 - cmd: call "C:\Program Files (x86)\Microsoft Visual Studio %VCVER%\VC\vcvarsall.bat" %ARCH%
 - mkdir build
 - cd build
-- cmd: cmake -G Ninja -DQt5_DIR=C:/Qt/%QTVER%/%QTCOMPILER%/lib/cmake/Qt5 -DBOOST_ROOT=C:/Libraries/boost_1_67_0 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=install -DLSL_INSTALL_ROOT=LSL/ %CMakeArgs% ../
+- cmd: cmake -G Ninja -DQt5_DIR=C:/Qt/%QTVER%/%QTCOMPILER%/lib/cmake/Qt5 -DCMAKE_BUILD_TYPE=Release -DLSL_INSTALL_ROOT=LSL/ %CMakeArgs% ../
 - cmake --build . --config Release --target install
 artifacts:
 - path: build/install
