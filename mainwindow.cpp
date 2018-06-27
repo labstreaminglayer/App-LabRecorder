@@ -172,7 +172,7 @@ void MainWindow::refreshStreams() {
 	QStringList previouslyChecked;
 	for(int i=0;i<ui->streamList->count();i++) {
 		QListWidgetItem* item = ui->streamList->item(i);
-		if(!streamNames.contains(item->text()) && item->checkState() == Qt::Checked)
+		if(item->checkState() == Qt::Checked)
 			previouslyChecked.push_back(item->text());
 	}
 	
