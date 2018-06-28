@@ -197,7 +197,8 @@ void MainWindow::startRecording() {
 		QSet<QString> checked = getCheckedStreams();
 
 		// if a checked stream is now missing
-		if(checked.intersects(missingStreams)) {
+		// change to "checked.intersects(missingStreams) as soon as Ubuntu 16.04/Qt 5.5 is EOL
+		if(!checked.intersect(missingStreams).isEmpty()) {
 				// are you sure?
 			    QMessageBox msgBox(QMessageBox::Warning,
 				                   "Stream not found",
