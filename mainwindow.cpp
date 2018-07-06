@@ -19,14 +19,14 @@ ui(new Ui::MainWindow) {
 
 	ui->setupUi(this);
 	connect(ui->actionQuit, &QAction::triggered, this, &QMainWindow::close);
-	connect(ui->actionLoadConfig, &QAction::triggered, [&](){
-		QString sel = QFileDialog::getOpenFileName(this,"Load Configuration File","","Configuration Files (*.cfg)");
-		if (!sel.isEmpty()) load_config(sel);
+	connect(ui->actionLoadConfig, &QAction::triggered, [this](){
+		this->load_config(QFileDialog::getOpenFileName(this,"Load Configuration File","","Configuration Files (*.cfg)"));
 	});
-	connect(ui->browseButton, &QPushButton::clicked, [&](){
-		QString sel = QFileDialog::getSaveFileName(this,"Save recordings as...", "untitled.xdf", "XDF recordings (*.xdf);;XDF compressed recordings (*.xdfz)");
-		if (!sel.isEmpty())
-			ui->locationEdit->setText(sel);
+	connect(ui->actionSaveConfig, &QAction::triggered, [this](){
+		this->save_config(QFileDialog::getSaveFileName(this, "Save Configuration File", "", "Configuration Files (*.cfg)"));
+	});
+	connect(ui->browseButton, &QPushButton::clicked, [this](){
+			this->ui->locationEdit->setText(QFileDialog::getSaveFileName(this,"Save recordings as...", "untitled.xdf", "XDF recordings (*.xdf)"));
 	});
 	connect(ui->blockList, static_cast<void(QComboBox::*)(const QString &)>(&QComboBox::activated), this, &MainWindow::blockSelected);
 	connect(ui->refreshButton, &QPushButton::clicked, this, &MainWindow::refreshStreams);
@@ -95,6 +95,10 @@ void MainWindow::load_config(QString filename) {
 		for(QString& oss: onlineSyncStreams) {
 			QStringList words = oss.split(' ', QString::SkipEmptyParts);
 			// The first two words ("StreamName (PC)") are the stream identifier
+			if(words.length() < 2) {
+				qInfo() << "Invalid sync stream config: " << oss;
+				continue;
+			}
 			QString key = words.takeFirst() + ' ' + words.takeFirst();
 
 			int val = 0;
@@ -143,6 +147,8 @@ void MainWindow::save_config(QString filename)
 {
 	QSettings settings(filename, QSettings::Format::IniFormat);
 	settings.setValue("StorageLocation", ui->locationEdit->text());
+	qInfo() << requiredStreams;
+	settings.setValue("RequiredStreams", requiredStreams);
 	// Stub.
 }
 
@@ -169,7 +175,7 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 	for(auto& s: resolvedStreams)
 		foundStreamNames.insert(QString::fromStdString(s.name()+ " (" + s.hostname()+")"));
 
-	QSet<QString> previouslyChecked = getCheckedStreams();
+	const QSet<QString> previouslyChecked = getCheckedStreams();
 	// Missing streams: all checked or required streams that weren't found
 	missingStreams = (previouslyChecked + requiredStreams.toSet()) - foundStreamNames;
 
@@ -193,12 +199,13 @@ void MainWindow::startRecording() {
 	if (!currentRecording ) {
 
 		// automatically refresh streams
-		std::vector<lsl::stream_info> resolvedStreams = refreshStreams();
-		QSet<QString> checked = getCheckedStreams();
+		const std::vector<lsl::stream_info> resolvedStreams = refreshStreams();
+		const QSet<QString> checked = getCheckedStreams();
 
 		// if a checked stream is now missing
 		// change to "checked.intersects(missingStreams) as soon as Ubuntu 16.04/Qt 5.5 is EOL
-		if(!checked.intersect(missingStreams).isEmpty()) {
+		QSet<QString> missing = checked;
+		if(!missing.intersect(missingStreams).isEmpty()) {
 				// are you sure?
 			    QMessageBox msgBox(QMessageBox::Warning,
 				                   "Stream not found",
@@ -209,6 +216,16 @@ void MainWindow::startRecording() {
 				msgBox.setDefaultButton(QMessageBox::No);
 				if(msgBox.exec()!=QMessageBox::Yes)
 					return;
+		}
+
+		if(checked.isEmpty()) {
+			QMessageBox msgBox(QMessageBox::Warning, "No streams selected",
+							   "You have selected no streams", QMessageBox::Yes | QMessageBox::No,
+							   this);
+			msgBox.setInformativeText("Do you want to start recording anyway?");
+			msgBox.setDefaultButton(QMessageBox::No);
+			if(msgBox.exec()!=QMessageBox::Yes)
+				return;
 		}
 
 		// determine the experiment number block
