@@ -24,6 +24,9 @@ option(LABRECORDER_BOOST_TYPE_CONVERSIONS "Use boost for type conversions" Off)
 # GENERAL CONFIG #
 set(META_PROJECT_DESCRIPTION "Record LabStreamingLayer streams to XDF data file.")
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED On)
+
 # THIRD PARTY LIBRARIES #
 find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
@@ -51,8 +54,6 @@ add_executable(testxdfwriter
 	xdfwriter.cpp
 )
 
-target_compile_features(${target} PRIVATE cxx_auto_type cxx_lambda_init_captures)
-
 find_package(Threads REQUIRED)
 
 target_link_libraries(${target}
@@ -62,8 +63,6 @@ target_link_libraries(${target}
     LSL::lsl
 )
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED On)
 
 # Test for floating point format and endianness
 try_run(IS_LITTLE_ENDIAN IS_IEC559
