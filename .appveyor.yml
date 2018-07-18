@@ -1,0 +1,55 @@
+version: 1.12.0.{build}
+pull_requests:
+  do_not_increment_build_number: true
+shallow_clone: true
+environment:
+  lslversion: 1.12.0
+  DODEPLOY: false
+  LSLDIST_URL: "https://dl.bintray.com/labstreaminglayer/LSL"
+  CMakeArgs: ""
+  matrix:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      VCVER: 14.0
+      QTCOMPILER: msvc2015_64
+      QTVER: 5.11
+      ARCH: x64
+      DEPLOYNAME: Win64
+    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu
+      DEPLOYNAME: Linux64-xenial
+install:
+- cmd: appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -FileName ninja.zip
+- cmd: appveyor DownloadFile %LSLDIST_URL%/liblsl-%lslversion%-Win64-MSVC%VCVER%.7z -FileName liblsl_x64.7z
+- cmd: 7z x ninja.zip -oC:\projects\deps\ninja > nul
+- cmd: 7z x liblsl_x64.7z
+- cmd: set PATH=C:\projects\deps\ninja;%PATH%
+- cmd: ninja --version
+- sh: set -x
+- sh: wget ${LSLDIST_URL}/liblsl-${lslversion}-${DEPLOYNAME}.deb -O lsl.deb
+- sh: dpkg -x lsl.deb LSL
+- sh: sudo apt update && sudo apt install -y qtbase5-dev
+build_script:
+- cmd: call "C:\Program Files (x86)\Microsoft Visual Studio %VCVER%\VC\vcvarsall.bat" %ARCH%
+- mkdir build
+- cd build
+- cmd: cmake -G Ninja -DQt5_DIR=C:/Qt/%QTVER%/%QTCOMPILER%/lib/cmake/Qt5 -DBOOST_ROOT=C:/Libraries/boost_1_67_0 -DLSL_INSTALL_ROOT=LSL/ %CMakeArgs% ../
+- sh: cmake -DLSL_INSTALL_ROOT=LSL/usr -DLSL_UNIXFOLDERS=1 ${CMakeArgs} ..
+- cmake --build . --config Release --target install
+- cpack
+artifacts:
+- path: 'build/*.deb'
+- path: 'build/*.tar.*'
+- path: build/install
+  name: ${APPVEYOR_PROJECT_NAME}_${lslversion}-${DEPLOYNAME}
+deploy:
+- provider: BinTray
+  username: tstenner
+  api_key:
+    secure: Fo9tIQnGjVnCXB3euItvYrt85A5O9FPqq7LEpsdOuwW+eOg1rwA5Q1HLp4yWDXAl
+  subject: labstreaminglayer
+  version: $(lslversion)
+  repo: LSL
+  package: $(APPVEYOR_PROJECT_NAME)
+  publish: true
+  override: true
+  on:
+    DODEPLOY: true
