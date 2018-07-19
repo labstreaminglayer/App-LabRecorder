@@ -1,5 +1,5 @@
 language: cpp
-dist: trusty
+dist: xenial
 compiler: clang
 env:
   LSLDIST_URL="https://dl.bintray.com/labstreaminglayer/LSL"
@@ -17,16 +17,16 @@ script:
 - cd ..
 matrix:
   include:
-    - os: linux
-      addons:
-        apt:
-          packages:
-            - qt5-default
-      before_script:
-        - travis_retry wget ${LSLDIST_URL}/liblsl-${LSL_VERSION}-Linux64-${UBUNTU_DIST}.deb
-        - dpkg -x *.deb LSL
-        - export LSL_INSTALL_ROOT=LSL/usr
-        - export CMakeArgs="-DLSL_UNIXFOLDERS=1 ${CMakeArgs}"
+#    - os: linux
+#      addons:
+#        apt:
+#          packages:
+#            - qt5-default
+#      before_script:
+#        - travis_retry wget ${LSLDIST_URL}/liblsl-${LSL_VERSION}-Linux64-${UBUNTU_DIST}.deb
+#        - dpkg -x *.deb LSL
+#        - export LSL_INSTALL_ROOT=LSL/usr
+#        - export CMakeArgs="-DLSL_UNIXFOLDERS=1 ${CMakeArgs}"
     - os: osx
       before_install:
       - brew install qt
