@@ -43,6 +43,14 @@ add_executable(${PROJECT_NAME} MACOSX_BUNDLE #WIN32
 	xdfwriter.cpp
 )
 
+add_executable(LabRecorderCLI MACOSX_BUNDLE
+	clirecorder.cpp
+	recording.h
+	recording.cpp
+	xdfwriter.h
+	xdfwriter.cpp
+)
+
 add_executable(testxdfwriter
 	test_xdf_writer.cpp
 	xdfwriter.h
@@ -56,6 +64,11 @@ target_link_libraries(${PROJECT_NAME}
 	LSL::lsl
 )
 
+target_link_libraries(LabRecorderCLI
+	PRIVATE
+	Threads::Threads
+	LSL::lsl
+)
 
 # Test for floating point format and endianness
 try_run(IS_LITTLE_ENDIAN IS_IEC559
@@ -92,6 +105,7 @@ if(LABRECORDER_XDFZ)
 endif()
 
 installLSLApp(${PROJECT_NAME})
+installLSLApp(LabRecorderCLI)
 installLSLApp(testxdfwriter)
 installLSLAuxFiles(${PROJECT_NAME}
 	default_config.cfg

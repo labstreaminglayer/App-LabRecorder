@@ -360,7 +360,7 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 
 		auto next_pull = Clock::now();
 		while (!shutdown_) {
-			// get chunks from the stream
+			// get a chunk from the stream
 			in->pull_chunk_multiplexed(chunk, &timestamps);
 			// for each sample...
 			for (double& ts : timestamps) {
@@ -371,10 +371,8 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 				} else
 					last_timestamp = ts;
 			}
-			// write the actual chunk, clear the buffers
+			// write the actual chunk
 			file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
-			chunk.clear();
-			timestamps.clear();
 			sample_count += timestamps.size();
 
 			next_pull+=chunk_interval;
