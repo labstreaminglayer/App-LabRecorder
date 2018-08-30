@@ -282,7 +282,9 @@ void recording::record_offsets(streamid_t streamid, const inlet_p& in, std::atom
 				offset = in->time_correction(2);
 				now = lsl::local_clock();
 			}
-			catch (lsl::timeout_error &) { continue; }
+			catch (lsl::timeout_error &) {
+				std::cerr << "Timeout in time correction query for stream " << streamid << std::endl;
+			}
 			file_.write_stream_offset(streamid, now, offset);
 			// also append to the offset lists
 			std::lock_guard<std::mutex> lock(offset_mut_);
