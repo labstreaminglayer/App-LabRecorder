@@ -116,6 +116,10 @@ recording::~recording() {
 	}
 }
 
+void recording::requestStop() noexcept {
+	shutdown_ = true;
+}
+
 void recording::record_from_query_results(const std::string &query) {
 	try {
 		std::set<std::string> known_uids;		// set of previously seen stream uid's

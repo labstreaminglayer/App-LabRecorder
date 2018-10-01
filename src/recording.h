@@ -72,6 +72,8 @@ public:
 	 */
 	~recording();
 
+	void requestStop() noexcept;
+
 private:
 	// the file stream
 	XDFWriter file_; // the file output stream

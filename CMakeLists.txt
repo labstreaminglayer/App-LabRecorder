@@ -12,7 +12,7 @@ option(LABRECORDER_BOOST_TYPE_CONVERSIONS "Use boost for type conversions" Off)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 
-find_package(Qt5 REQUIRED COMPONENTS Widgets)
+find_package(Qt5 REQUIRED COMPONENTS Widgets Network)
 
 find_package(Threads REQUIRED)
 
@@ -24,6 +24,8 @@ add_executable(${PROJECT_NAME} MACOSX_BUNDLE #WIN32
 	src/recording.h
 	src/recording.cpp
 	src/conversions.h
+	src/tcpinterface.h
+	src/tcpinterface.cpp
 	src/xdfwriter.h
 	src/xdfwriter.cpp
 )
@@ -45,6 +47,7 @@ add_executable(testxdfwriter
 target_link_libraries(${PROJECT_NAME}
 	PRIVATE
 	Qt5::Widgets
+	Qt5::Network
 	Threads::Threads
 	LSL::lsl
 )

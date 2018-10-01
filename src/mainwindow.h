@@ -16,6 +16,7 @@ class MainWindow;
 }
 
 class recording;
+class RemoteControlSocket;
 
 class RecorderItem {
 
@@ -44,6 +45,7 @@ private slots:
 	void buildFilename();
 	void buildBidsTemplate();
 	void printReplacedFilename();
+	void toggleRcs();
 
 private:
 	QSet<QString> getCheckedStreams() const;
@@ -55,6 +57,7 @@ private:
 	void save_config(QString filename);
 
 	std::unique_ptr<recording> currentRecording;
+	std::unique_ptr<RemoteControlSocket> rcs;
 
 	int startTime;
 	std::unique_ptr<QTimer> timer;

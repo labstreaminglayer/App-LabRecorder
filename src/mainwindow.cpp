@@ -13,6 +13,7 @@
 
 // recording class
 #include "recording.h"
+#include "tcpinterface.h"
 
 MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	: QMainWindow(parent), ui(new Ui::MainWindow) {
@@ -39,6 +40,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 						  "\nLSL library info:" + lsl::lsl_library_info();
 		QMessageBox::about(this, "About this app", infostr);
 	});
+	connect(ui->rcsbutton, &QPushButton::clicked, this, &MainWindow::toggleRcs);
 
 	// Wheenver lineEdit_template is changed, print the final result.
 	connect(
@@ -500,3 +502,17 @@ void MainWindow::printReplacedFilename() {
 		ui->rootEdit->text() + '\n' + replaceFilename(ui->lineEdit_template->text()));
 }
 MainWindow::~MainWindow() noexcept = default;
+
+void MainWindow::toggleRcs() {
+	if (rcs) {
+		rcs = nullptr;
+		ui->rcsbutton->setText("Start RCS");
+	} else {
+		uint16_t port = ui->rcsport->value();
+		rcs = std::make_unique<RemoteControlSocket>(port);
+		ui->rcsbutton->setText("Stop RCS");
+
+		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::startRecording);
+		connect(rcs.get(), &RemoteControlSocket::stop, this, &MainWindow::stopRecording);
+	}
+}
