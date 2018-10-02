@@ -112,34 +112,35 @@ void XDFWriter::write_data_chunk(streamid_t streamid, const std::vector<double>&
 
 	// generate [Samples] chunk contents...
 
-	auto len = 1 + sizeof(n_samples);
 	std::ostringstream out;
+	write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later
 	for (double ts : timestamps) {
 		write_ts(out, ts);
 		// write sample, get the current position in the chunk array back
 		chunk = write_sample_values(out, chunk, n_channels);
 	}
-	const std::string outstr(out.str());
-	len += outstr.size();
+	std::string outstr(out.str());
+	// Replace length placeholder
+	auto s = static_cast<uint32_t>(n_samples);
+	std::copy(reinterpret_cast<char*>(&s), reinterpret_cast<char*>(&s+1), outstr.begin()+1);
 
 	std::lock_guard<std::mutex> lock(write_mut);
-	_write_chunk_header(chunk_tag_t::samples, len, &streamid);
-	write_fixlen_int(file_, n_samples);
-	file_ << outstr;
+	_write_chunk(chunk_tag_t::samples, outstr, &streamid);
 }
 
 template <typename T>
 void XDFWriter::write_data_chunk_nested(streamid_t streamid, const std::vector<double>& timestamps,
                                         const std::vector<std::vector<T>>& chunk) {
 	if (chunk.size() == 0) return;
+	auto n_samples = timestamps.size();
 	if (timestamps.size() != chunk.size())
 		throw std::runtime_error("timestamp / sample count mismatch");
 	auto n_channels = chunk[0].size();
 
 	// generate [Samples] chunk contents...
 
-	auto len = 1 + sizeof(chunk.size());
 	std::ostringstream out;
+	write_fixlen_int(out, 0x0FFFFFFF); // Placeholder length, will be replaced later
 	auto sample_it = chunk.cbegin();
 	for (double ts : timestamps) {
 		assert(n_channels == sample_it->size());
@@ -148,11 +149,10 @@ void XDFWriter::write_data_chunk_nested(streamid_t streamid, const std::vector<d
 		write_sample_values(out, sample_it->data(), n_channels);
 		sample_it++;
 	}
-	const std::string outstr(out.str());
-	len += outstr.size();
-
+	std::string outstr(out.str());
+	// Replace length placeholder
+	auto s = static_cast<uint32_t>(n_samples);
+	std::copy(reinterpret_cast<char*>(&s), reinterpret_cast<char*>(&s+1), outstr.begin()+1);
 	std::lock_guard<std::mutex> lock(write_mut);
-	_write_chunk_header(chunk_tag_t::samples, len, &streamid);
-	write_fixlen_int(file_, chunk.size());
-	file_ << outstr;
+	_write_chunk(chunk_tag_t::samples, outstr, &streamid);
 }

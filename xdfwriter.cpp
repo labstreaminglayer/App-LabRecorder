@@ -43,11 +43,9 @@ void XDFWriter::_write_chunk_header(chunk_tag_t tag, std::size_t len,
                                     const streamid_t* streamid_p) {
 	len += sizeof(chunk_tag_t);
 	if (streamid_p) len += sizeof(streamid_t);
-	// std::cout << "Writing chunk len " << len << ' ' <<
-	// (streamid_p?std::to_string(*streamid_p):"") << std::endl;
 
 	// [Length] (variable-length integer, content + 2 bytes for the tag
-	// + 2 bytes if the streamid is being written
+	// + 4 bytes if the streamid is being written
 	write_varlen_int(file_, len);
 	// [Tag]
 	write_little_endian(file_, static_cast<uint16_t>(tag));
