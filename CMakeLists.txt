@@ -39,6 +39,12 @@ add_executable(LabRecorderCLI MACOSX_BUNDLE
 	src/xdfwriter.cpp
 )
 
+add_executable(test_chunk7
+	test_chunk7.cpp
+	xdfwriter.h
+	xdfwriter.cpp
+)
+
 add_executable(testxdfwriter
 	src/test_xdf_writer.cpp
 	src/xdfwriter.h
