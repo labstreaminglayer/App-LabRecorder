@@ -253,7 +253,7 @@ void MainWindow::startRecording() {
 			int i = 1;
 			while(QFileInfo(rename_to.arg(i)).exists()) i++;
 			QString newname = rename_to.arg(i);
-			if(!QFile::rename(recFileInfo.absoluteFilePath(), newname)) {
+			if(!QFile::rename(recFileInfo.absoluteFilePath(), recFileInfo.absolutePath() + '/' + newname)) {
 				QMessageBox::warning(this,"Permissions issue", "Can not rename the file " + recFilename + " to " + recFileInfo.path() + '/' + newname);
 			    return;
 			}
