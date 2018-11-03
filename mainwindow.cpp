@@ -41,7 +41,7 @@ ui(new Ui::MainWindow) {
 
 	load_config(config_file);
 
-	timer.reset(new QTimer(this));
+	timer = std::make_unique<QTimer>(this);
 	connect(&*timer, &QTimer::timeout, this, &MainWindow::statusUpdate);
 	timer->start(1000);
 	//startTime = (int)lsl::local_clock();
@@ -81,9 +81,8 @@ void MainWindow::blockSelected(const QString& block) {
 
 void MainWindow::load_config(QString filename) {
 	qInfo() << "loading config file " << filename;
-	try
-    {
-		if(!QFileInfo(filename).exists()) throw std::runtime_error("Settings file doesn't exist.");
+	try {
+		if (!QFileInfo::exists(filename)) throw std::runtime_error("Settings file doesn't exist.");
 		QSettings pt(filename, QSettings::Format::IniFormat);
 
 		// ----------------------------
@@ -105,7 +104,7 @@ void MainWindow::load_config(QString filename) {
 			QString key = words.takeFirst() + ' ' + words.takeFirst();
 
 			int val = 0;
-			for (auto word: words) {
+			for (const auto& word : words) {
 				if (word == "post_clocksync") { val |= lsl::post_clocksync; }
 				if (word == "post_dejitter") { val |= lsl::post_dejitter; }
 				if (word == "post_monotonize") { val |= lsl::post_monotonize; }
@@ -185,8 +184,8 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 	// (Re-)Populate the UI list
 	const QBrush good_brush(QColor(0,128,0)), bad_brush(QColor(255,0,0));
 	ui->streamList->clear();
-	for(auto&& streamName: foundStreamNames + missingStreams) {
-		QListWidgetItem* item = new QListWidgetItem(streamName, ui->streamList);
+	for (auto &&streamName : foundStreamNames + missingStreams) {
+		auto *item = new QListWidgetItem(streamName, ui->streamList);
 
 		item->setCheckState(previouslyChecked.contains(streamName) ? Qt::Checked : Qt::Unchecked);
 		item->setForeground(missingStreams.contains(streamName) ? bad_brush : good_brush);
@@ -251,7 +250,7 @@ void MainWindow::startRecording() {
 			QString rename_to = recFileInfo.baseName() + "_old%1." + recFileInfo.suffix();
 			// search for highest _oldN
 			int i = 1;
-			while(QFileInfo(rename_to.arg(i)).exists()) i++;
+			while (QFileInfo::exists(rename_to.arg(i))) i++;
 			QString newname = rename_to.arg(i);
 			if(!QFile::rename(recFileInfo.absoluteFilePath(), recFileInfo.absolutePath() + '/' + newname)) {
 				QMessageBox::warning(this,"Permissions issue", "Can not rename the file " + recFilename + " to " + recFileInfo.path() + '/' + newname);
@@ -279,7 +278,8 @@ void MainWindow::startRecording() {
 			watchfor.push_back(missing.toStdString());
 		qInfo() << "Missing: " << missingStreams;
 
-		currentRecording.reset(new recording(recFilename.toStdString(), checkedStreams, watchfor, syncOptionsByStreamName, 1));
+		currentRecording = std::make_unique<recording>(
+			recFilename.toStdString(), checkedStreams, watchfor, syncOptionsByStreamName, true);
 		ui->stopButton->setEnabled(true);
 		ui->startButton->setEnabled(false);
 		startTime = (int)lsl::local_clock();
