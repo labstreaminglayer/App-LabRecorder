@@ -4,7 +4,7 @@ compiler: clang
 env:
   LSLDIST_URL="https://dl.bintray.com/labstreaminglayer/LSL"
   UBUNTU_DIST="trusty"
-  LSL_VERSION="1.12.0"
+  LSL_VERSION="1.13.0"
   - CMakeArgs=""
 script:
 - mkdir -p build/install
