@@ -233,6 +233,11 @@ void MainWindow::startRecording() {
 		// determine the experiment number block
 		// scan the path for %n/%1 and %b/%2
 		recFilename = ui->locationEdit->text();
+		if (recFilename.isEmpty()) {
+			QMessageBox::critical(this, "Filename empty", "Can not record without a file name");
+			return;
+		}
+		
 		int pos_n = recFilename.indexOf("%n");
 		if(pos_n != -1)
 			recFilename.replace(pos_n, 2, QString::number(ui->experimentNumberSpin->value()));
