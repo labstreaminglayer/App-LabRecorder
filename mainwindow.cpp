@@ -82,7 +82,7 @@ void MainWindow::blockSelected(const QString& block) {
 void MainWindow::load_config(QString filename) {
 	qInfo() << "loading config file " << filename;
 	try {
-		if (!QFileInfo::exists(filename)) throw std::runtime_error("Settings file doesn't exist.");
+		//if (!QFileInfo::exists(filename)) throw std::runtime_error("Settings file doesn't exist.");
 		QSettings pt(filename, QSettings::Format::IniFormat);
 
 		// ----------------------------
