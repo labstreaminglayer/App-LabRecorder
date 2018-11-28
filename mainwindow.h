@@ -4,6 +4,7 @@
 // Qt
 #include "ui_mainwindow.h"
 
+#include <QComboBox>
 #include <QCloseEvent>
 #include <QListWidget>
 #include <QMainWindow>
