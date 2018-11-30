@@ -2,19 +2,10 @@ language: cpp
 dist: xenial
 compiler: clang
 env:
-  LSLDIST_URL="https://dl.bintray.com/labstreaminglayer/LSL"
-  UBUNTU_DIST="trusty"
-  LSL_VERSION="1.13.0"
+  LSLDIST_URL="https://github.com/sccn/liblsl/releases/download/"
+  UBUNTU_DIST="xenial"
+  LSL_VERSION="1.13.0-b3"
   - CMakeArgs=""
-script:
-- mkdir -p build/install
-- cd build
-- cmake --version
-- cmake -DLSL_INSTALL_ROOT=${LSL_INSTALL_ROOT} $CMakeArgs ../
-- cmake --build . --config Release --target install
-- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then for app in *.app; do ${CMAKE_PREFIX_PATH}/bin/macdeployqt ${app} -dmg; mv "${app%.app}.dmg" "${app%.app}-${LSL_VERSION}-OSX64.dmg}"; done; fi
-- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cpack; fi
-- cd ..
 matrix:
   include:
 #    - os: linux
@@ -32,13 +23,15 @@ matrix:
       - brew install qt
       - export CMAKE_PREFIX_PATH=/usr/local/opt/qt/
       before_script:
-      - travis_retry wget ${LSLDIST_URL}/liblsl-${LSL_VERSION}-OSX64.tar.bz2
+      - travis_retry wget ${LSLDIST_URL}/${LSL_VERSION}/liblsl-${LSL_VERSION}-OSX64.tar.bz2
       - mkdir LSL; tar -xf *.tar.bz2 -C LSL
       - export LSL_INSTALL_ROOT=LSL
-deploy:
-  skip_cleanup: true
-  provider: bintray
-  user: tstenner
-  key:
-    secure: "LWOE+Vmi/cWCpmg56L/fLzd9EReLnXM+RcLG/FxpycGSEniQawxDU0sU+bQDf10DtG41Xc6TRKhnbphoVSgjM6s9eAGdG+is1QxoCZMYdI4neefr6hLWiBXFPinQiWcHbEeqCCaSTH+AGqqdLP2UpGuRAy4aeJogBkvtfmX4+jLLUlmZwxEqElPkS32jZo5W6jrbH8bw0WxCy7UBV0UMki0mDmp+sJr3fWEDdL/IUR2jBAOMqwvUGqBMWMB4l+LX7DaFW7ASjpXIw+J0hKcZSixJwzkndiHyUDb0aEdyaOwh8vSOJaBHZS4i7+BJsn3Y6itYglCViV1FEGLoZkmYG9UiKhw62nny1OcOCXuGX/0CSXYvEN/n2weL/OxGjO76QovwpGC+Njh2yVTB4k9V4LAixtxZYn2UVktuIF+GJkwviWTn7xyzdftqRGVS1t0N9PxoxljWKDZR7ocBkiyyJsINRx0a7NaUksOzWq5O5sgb8nBU8bsEJzGsmkaZeZZAnDiiUb56o4KDxG+Ql73rgmxzH2lRjV79cQoOJmo85Iz4CarNbLv5ZBoIN7HcDjmUwYS9bsJYE03OmTeZYVCle/pBOfRK60C2NKNAT+rJAqt1ihYy+aqT5A/3YnGJbwPDT9ekViziD7Ojche+nI1CYegD6sg9jD1xwExkczu+Eqo="
-  file: .bintray.json
+script:
+- mkdir -p build/install
+- cd build
+- cmake --version
+- cmake -DLSL_INSTALL_ROOT=${LSL_INSTALL_ROOT} $CMakeArgs ../
+- cmake --build . --config Release --target install
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then for app in *.app; do ${CMAKE_PREFIX_PATH}/bin/macdeployqt ${app} -dmg; mv "${app%.app}.dmg" "${app%.app}-${LSL_VERSION}-OSX64.dmg}"; done; fi
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cpack; fi
+- cd ..
