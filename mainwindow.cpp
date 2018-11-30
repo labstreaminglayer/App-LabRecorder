@@ -43,8 +43,9 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 
 	// Wheenver locationEdit is changed, print the final result.
 	connect(ui->locationEdit, &QLineEdit::textChanged, this, &MainWindow::printReplacedFilename);
-	connect(ui->experimentNumberSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::printReplacedFilename);
-	connect(ui->spinBox_run, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::printReplacedFilename);
+	auto spinchanged = static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged);
+	connect(ui->experimentNumberSpin, spinchanged, this, &MainWindow::printReplacedFilename);
+	connect(ui->spinBox_run, spinchanged, this, &MainWindow::printReplacedFilename);
 
 	// Signals for builder-related edits -> buildFilename
 	connect(ui->rootBrowseButton, &QPushButton::clicked, [this]() {
