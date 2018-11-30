@@ -8,13 +8,10 @@ environment:
   CMakeArgs: ""
   matrix:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-      VCVER: 14.1
       QTCOMPILER: msvc2017_64
       QTVER: 5.11
-      ARCH: x64
-      DEPLOYNAME: Win64
-    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu1804
-      DEPLOYNAME: Linux64-bionic
+    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu1604
+      DEPLOYNAME: Linux64-xenial
 install:
 - cmd: appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -FileName ninja.zip
 - cmd: appveyor DownloadFile %LSLDIST_URL%/%lslversion%/liblsl-%lslversion%-Win64.7z -FileName liblsl_x64.7z
@@ -27,7 +24,7 @@ install:
 - sh: dpkg -x lsl.deb LSL
 - sh: sudo apt update && sudo apt install -y qtbase5-dev
 build_script:
-- cmd: call "C:\Program Files (x86)\Microsoft Visual Studio %VCVER%\VC\vcvarsall.bat" %ARCH%
+- cmd: call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
 - mkdir build
 - cd build
 - cmd: cmake -G Ninja -DQt5_DIR=C:/Qt/%QTVER%/%QTCOMPILER%/lib/cmake/Qt5 -DBOOST_ROOT=C:/Libraries/boost_1_67_0 -DLSL_INSTALL_ROOT=LSL/ %CMakeArgs% ../
