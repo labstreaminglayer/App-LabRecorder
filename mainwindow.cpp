@@ -141,7 +141,7 @@ void MainWindow::load_config(QString filename) {
 		if (child != 0) { delete child; }
 		QStringList taskNames;
 		if (pt.contains("SessionBlocks")) { taskNames = pt.value("SessionBlocks").toStringList(); }
-		hasTasks = taskNames.count() > 0;
+		hasTasks = !taskNames.empty();
 		if (hasTasks) {
 			taskBox = new QComboBox();
 			taskBox->addItems(taskNames);
@@ -353,10 +353,10 @@ void MainWindow::buildFilename() {
 
 	// Fill root folder with default if needed.
 	if (ui->rootEdit->text().isEmpty()) {
-			QStringList fileparts =
-				QStringList(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
-				<< "CurrentStudy";
-			ui->rootEdit->setText(QDir::toNativeSeparators(fileparts.join(QDir::separator())));
+		QStringList fileparts =
+			QStringList(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+			<< "CurrentStudy";
+		ui->rootEdit->setText(QDir::toNativeSeparators(fileparts.join(QDir::separator())));
 	}
 
 	// Build the file location in parts, starting with the root folder.
