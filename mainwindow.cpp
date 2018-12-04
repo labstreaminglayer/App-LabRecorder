@@ -45,7 +45,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(
 		ui->lineEdit_template, &QLineEdit::textChanged, this, &MainWindow::printReplacedFilename);
 	auto spinchanged = static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged);
-	connect(ui->experimentNumberSpin, spinchanged, this, &MainWindow::printReplacedFilename);
+	connect(ui->spin_counter, spinchanged, this, &MainWindow::printReplacedFilename);
 
 	// Signals for builder-related edits -> buildFilename
 	connect(ui->rootBrowseButton, &QPushButton::clicked, [this]() {
@@ -66,8 +66,10 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 			legacyTemplate = box.text();
 			box.setText(
 				QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf"));
+			ui->label_counter->setText("Run (%r)");
 		} else {
 			box.setText(legacyTemplate);
+			ui->label_counter->setText("Exp num (%n)");
 		}
 	});
 
@@ -209,9 +211,9 @@ void MainWindow::load_config(QString filename) {
 		// We only do this on settings-load because manual spin changes might indicate purposeful overwriting.
 		QString recFilename = ui->lineEdit_template->text();
 		// Spin Number
-		if (recFilename.contains(QStringLiteral("%n"))) {
+		if (recFilename.contains(counterPlaceholder())) {
 			for (int i = 1; i < 1001; i++) {
-				ui->experimentNumberSpin->setValue(i);
+				ui->spin_counter->setValue(i);
 				if (!QFileInfo::exists(replaceFilename(recFilename))) break;
 			}
 		}
@@ -419,9 +421,9 @@ void MainWindow::buildFilename() {
 	QString tpl = ui->lineEdit_template->text();
 
 	// Auto-increment Spin/Run Number if necessary.
-	if (tpl.contains("%n") || tpl.contains("%r")) {
+	if (tpl.contains(counterPlaceholder())) {
 		for (int i = 1; i < 1001; i++) {
-			ui->experimentNumberSpin->setValue(i);
+			ui->spin_counter->setValue(i);
 			if (!QFileInfo::exists(replaceFilename(tpl))) break;
 		}
 	}
@@ -435,10 +437,8 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 	// There are two different wildcard formats: legacy, BIDS
 
 	// Legacy takes the form path/to/study/exp%n/%b.xdf
-	// Where %n will be replaced by the contents of the experimentNumberSpin widget
+	// Where %n will be replaced by the contents of the spin_counter widget
 	// and %b will be replaced by the contents of the blockList widget.
-	QString run = QString("%1").arg(ui->experimentNumberSpin->value(), 3, 10, QChar('0'));
-	fullfile.replace("%n", run);
 	fullfile.replace("%b", ui->input_blocktask->currentText());
 
 	// BIDS
@@ -449,7 +449,10 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 	fullfile.replace("%p", ui->lineEdit_participant->text());
 	fullfile.replace("%s", ui->lineEdit_session->text());
 	fullfile.replace("%a", ui->lineEdit_acq->text());
-	fullfile.replace("%r", run);
+
+	// Replace either %r or %n with the counter
+	QString run = QString("%1").arg(ui->spin_counter->value(), 3, 10, QChar('0'));
+	fullfile.replace(counterPlaceholder(), run);
 
 	return fullfile;
 }
@@ -487,6 +490,11 @@ QString MainWindow::find_config_file(const char *filename) {
 	QMessageBox(QMessageBox::Warning, "No config file not found",
 		QStringLiteral("No default config file could be found"), QMessageBox::Ok, this);
 	return "";
+}
+
+QString MainWindow::counterPlaceholder() const
+{
+	return ui->check_bids->isChecked() ? "%r" : "%n";
 }
 
 void MainWindow::printReplacedFilename() {

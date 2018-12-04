@@ -111,10 +111,9 @@
        </property>
        <layout class="QGridLayout" name="gridLayout_2">
         <item row="3" column="0">
-         <widget class="QLabel" name="label_expNum">
+         <widget class="QLabel" name="label_counter">
           <property name="text">
-           <string>Exp num (%n)
-Run (%r)</string>
+           <string>Counter</string>
           </property>
          </widget>
         </item>
@@ -209,7 +208,7 @@ Run (%r)</string>
          </spacer>
         </item>
         <item row="3" column="1">
-         <widget class="QSpinBox" name="experimentNumberSpin">
+         <widget class="QSpinBox" name="spin_counter">
           <property name="minimum">
            <number>1</number>
           </property>
@@ -300,7 +299,7 @@ Run (%r)</string>
   <tabstop>lineEdit_template</tabstop>
   <tabstop>check_bids</tabstop>
   <tabstop>input_blocktask</tabstop>
-  <tabstop>experimentNumberSpin</tabstop>
+  <tabstop>spin_counter</tabstop>
   <tabstop>lineEdit_participant</tabstop>
   <tabstop>lineEdit_session</tabstop>
   <tabstop>lineEdit_acq</tabstop>
