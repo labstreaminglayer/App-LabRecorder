@@ -42,6 +42,7 @@ private slots:
 	void selectAllStreams();
 	void selectNoStreams();
 	void buildFilename();
+	void buildBidsTemplate();
 	void printReplacedFilename();
 
 private:

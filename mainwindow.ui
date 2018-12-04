@@ -2,14 +2,6 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>1023</width>
-    <height>524</height>
-   </rect>
-  </property>
   <property name="windowTitle">
    <string>Lab Recorder</string>
   </property>
@@ -109,11 +101,20 @@
        <bool>true</bool>
       </property>
       <widget class="QWidget" name="scrollAreaWidgetContents">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>316</width>
+         <height>312</height>
+        </rect>
+       </property>
        <layout class="QGridLayout" name="gridLayout_2">
         <item row="3" column="0">
          <widget class="QLabel" name="label_expNum">
           <property name="text">
-           <string>Exp num (%n)</string>
+           <string>Exp num (%n)
+Run (%r)</string>
           </property>
          </widget>
         </item>
@@ -143,13 +144,6 @@
           </property>
          </widget>
         </item>
-        <item row="7" column="0">
-         <widget class="QLabel" name="label_run">
-          <property name="text">
-           <string>Run (%r)</string>
-          </property>
-         </widget>
-        </item>
         <item row="0" column="2">
          <widget class="QPushButton" name="rootBrowseButton">
           <property name="text">
@@ -157,22 +151,6 @@
           </property>
           <property name="shortcut">
            <string>Ctrl+B</string>
-          </property>
-         </widget>
-        </item>
-        <item row="7" column="1">
-         <widget class="QSpinBox" name="spinBox_run">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimum">
-           <number>1</number>
-          </property>
-          <property name="maximum">
-           <number>1000</number>
           </property>
          </widget>
         </item>
@@ -217,15 +195,15 @@
           </property>
          </widget>
         </item>
-        <item row="8" column="1">
+        <item row="7" column="1">
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
-            <width>20</width>
-            <height>40</height>
+            <width>0</width>
+            <height>0</height>
            </size>
           </property>
          </spacer>
@@ -261,7 +239,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1023</width>
+     <width>659</width>
      <height>30</height>
     </rect>
    </property>
@@ -310,6 +288,24 @@
    </property>
   </action>
  </widget>
+ <tabstops>
+  <tabstop>startButton</tabstop>
+  <tabstop>stopButton</tabstop>
+  <tabstop>streamList</tabstop>
+  <tabstop>selectAllButton</tabstop>
+  <tabstop>selectNoneButton</tabstop>
+  <tabstop>refreshButton</tabstop>
+  <tabstop>rootEdit</tabstop>
+  <tabstop>rootBrowseButton</tabstop>
+  <tabstop>lineEdit_template</tabstop>
+  <tabstop>check_bids</tabstop>
+  <tabstop>input_blocktask</tabstop>
+  <tabstop>experimentNumberSpin</tabstop>
+  <tabstop>lineEdit_participant</tabstop>
+  <tabstop>lineEdit_session</tabstop>
+  <tabstop>lineEdit_acq</tabstop>
+  <tabstop>scrollArea</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>
