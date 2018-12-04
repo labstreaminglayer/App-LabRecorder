@@ -1,4 +1,4 @@
-#include "mainwindow.h"
+﻿#include "mainwindow.h"
 #include "ui_mainwindow.h"
 
 #include <QDateTime>
@@ -41,8 +41,8 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		QMessageBox::about(this, "About LabRecorder", infostr);
 	});
 
-	// Wheenver locationEdit is changed, print the final result.
-	connect(ui->locationEdit, &QLineEdit::textChanged, this, &MainWindow::printReplacedFilename);
+	// Wheenver lineEdit_template is changed, print the final result.
+	connect(ui->lineEdit_template, &QLineEdit::textChanged, this, &MainWindow::printReplacedFilename);
 	auto spinchanged = static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged);
 	connect(ui->experimentNumberSpin, spinchanged, this, &MainWindow::printReplacedFilename);
 	connect(ui->spinBox_run, spinchanged, this, &MainWindow::printReplacedFilename);
@@ -56,6 +56,18 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->lineEdit_participant, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
 	connect(ui->lineEdit_session, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
 	connect(ui->lineEdit_acq, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
+	connect(ui->input_blocktask, &QComboBox::currentTextChanged, this, &MainWindow::buildFilename);
+	connect(ui->check_bids, &QCheckBox::toggled, [this](bool checked){
+		auto& box = *ui->lineEdit_template;
+		box.setReadOnly(checked);
+		if (checked) {
+			legacyTemplate = box.text();
+			box.setText(
+				QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf"));
+		} else {
+			box.setText(legacyTemplate);
+		}
+	});
 
 	load_config(config_file);
 
@@ -70,7 +82,7 @@ MainWindow::~MainWindow() noexcept = default;
 void MainWindow::statusUpdate() const {
 	if (currentRecording) {
 		auto elapsed = static_cast<unsigned int>(lsl::local_clock() - startTime);
-		QString recFilename = replaceFilename(ui->locationEdit->text());
+		QString recFilename = replaceFilename(ui->lineEdit_template->text());
 		auto fileinfo = QFileInfo(recFilename);
 		fileinfo.refresh();
 		auto size = fileinfo.size();
@@ -136,38 +148,28 @@ void MainWindow::load_config(QString filename) {
 		// ----------------------------
 		// Block/Task Names
 		// ----------------------------
-		// Clear out any widgets where block/task name goes.
-		QLayoutItem *child = ui->horizontalLayout_blockTask->takeAt(1);
-		if (child != 0) { delete child; }
 		QStringList taskNames;
 		if (pt.contains("SessionBlocks")) { taskNames = pt.value("SessionBlocks").toStringList(); }
-		hasTasks = !taskNames.empty();
-		if (hasTasks) {
-			taskBox = new QComboBox();
-			taskBox->addItems(taskNames);
-			connect(taskBox,
-				static_cast<void (QComboBox::*)(const QString &)>(&QComboBox::activated), this,
-				&MainWindow::blockSelected);
-			ui->horizontalLayout_blockTask->addWidget(taskBox);
-
-		} else {
-			taskEdit = new QLineEdit();
-			connect(taskEdit, &QLineEdit::editingFinished, this, &MainWindow::printReplacedFilename);
-			ui->horizontalLayout_blockTask->addWidget(taskEdit);
-		}
+		ui->input_blocktask->clear();
+		ui->input_blocktask->insertItems(0, taskNames);
 
 		// StudyRoot
-		if (pt.contains("StudyRoot")) { ui->rootEdit->setText(pt.value("StudyRoot").toString()); }
+		if (pt.contains("StudyRoot")) {
+			ui->rootEdit->setText(pt.value("StudyRoot").toString());
+		} else {
+			ui->rootEdit->setText(
+				QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+		}
 
 		// StorageLocation
 		QString str_path = pt.value("StorageLocation", "").toString();
-		ui->locationEdit->setText(str_path);
+		ui->lineEdit_template->setText(str_path);
 		if (str_path.length() == 0) { buildFilename(); }
 
 		// Check the wild-card-replaced filename to see if it exists already.
 		// If it does then increment the exp number.
 		// We only do this on settings-load because manual spin changes might indicate purposeful overwriting.
-		QString recFilename = ui->locationEdit->text();
+		QString recFilename = ui->lineEdit_template->text();
 		// Spin Number
 		if (recFilename.contains(QStringLiteral("%n"))) {
 			for (int i = 1; i < 1001; i++) {
@@ -183,7 +185,7 @@ void MainWindow::load_config(QString filename) {
 
 void MainWindow::save_config(QString filename) {
 	QSettings settings(filename, QSettings::Format::IniFormat);
-	settings.setValue("StorageLocation", ui->locationEdit->text());
+	settings.setValue("StorageLocation", ui->lineEdit_template->text());
 	qInfo() << requiredStreams;
 	settings.setValue("RequiredStreams", requiredStreams);
 	// Stub.
@@ -259,7 +261,7 @@ void MainWindow::startRecording() {
 		}
 
 		// Handle wildcards in filename.
-		QString recFilename = replaceFilename(ui->locationEdit->text());
+		QString recFilename = replaceFilename(ui->lineEdit_template->text());
 		if (recFilename.isEmpty()) {
 			QMessageBox::critical(this, "Filename empty", "Can not record without a file name");
 			return;
@@ -361,18 +363,17 @@ void MainWindow::buildFilename() {
 
 	// Build the file location in parts, starting with the root folder.
 	QStringList fileparts = QStringList(ui->rootEdit->text());
+	bool hasTasks = ui->input_blocktask->currentText().isEmpty();
 
-	bool use_bids = (!ui->lineEdit_participant->text().isEmpty()) ||
-					(!ui->lineEdit_session->text().isEmpty()) ||
-					(!ui->lineEdit_acq->text().isEmpty());
+	bool use_bids = ui->check_bids->isChecked();
 	if (use_bids) {
 		// path/to/CurrentStudy/sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf
 		
 		// Make sure the BIDS required fields are full.
 		if (ui->lineEdit_participant->text().isEmpty()) { ui->lineEdit_participant->setText("P001"); }
 		if (ui->lineEdit_session->text().isEmpty()) { ui->lineEdit_session->setText("S001"); }
-		if (!hasTasks && taskEdit->text().isEmpty()) { taskEdit->setText("Default"); }
-		
+		if (ui->input_blocktask->currentText().isEmpty()) { ui->input_blocktask->setCurrentText("Default"); }
+
 		// Folder hierarchy
 		fileparts << "sub-%p"
 				  << "ses-%s"
@@ -411,10 +412,10 @@ void MainWindow::buildFilename() {
 			if (!QDir(replaceFilename(recFilename)).exists()) { break; }
 		}
 	}
-	// Sometimes locationEdit doesn't change so printReplacedFilename isn't triggered.
+	// Sometimes lineEdit_template doesn't change so printReplacedFilename isn't triggered.
 	// So trigger manually.
-	if (ui->locationEdit->text() == recFilename) { printReplacedFilename(); }
-	ui->locationEdit->setText(recFilename);
+	if (ui->lineEdit_template->text() == recFilename) { printReplacedFilename(); }
+	ui->lineEdit_template->setText(recFilename);
 }
 
 QString MainWindow::replaceFilename(QString fullfile) const {
@@ -425,11 +426,7 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 	// Where %n will be replaced by the contents of the experimentNumberSpin widget
 	// and %b will be replaced by the contents of the blockList widget.
 	fullfile.replace("%n", QString("%1").arg(ui->experimentNumberSpin->value(), 3, 10, QChar('0')));
-	if (hasTasks) {
-		fullfile.replace("%b", taskBox->currentText());
-	} else {
-		fullfile.replace("%b", taskEdit->text());
-	}
+	fullfile.replace("%b", ui->input_blocktask->currentText());
 	
 	// BIDS
 	// See https://docs.google.com/document/d/1ArMZ9Y_quTKXC-jNXZksnedK2VHHoKP3HCeO5HPcgLE/
@@ -445,5 +442,5 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 }
 
 void MainWindow::printReplacedFilename() {
-	ui->locationLabel->setText(replaceFilename(ui->locationEdit->text()));
+	ui->locationLabel->setText(replaceFilename(ui->lineEdit_template->text()));
 }

@@ -6,15 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>650</width>
-    <height>577</height>
+    <width>1023</width>
+    <height>524</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Lab Recorder</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QGridLayout" name="gridLayout_master" rowstretch="0,1" columnstretch="10,15">
+   <layout class="QGridLayout" name="gridLayout_master" rowstretch="0,0,0" columnstretch="1,1">
     <item row="0" column="0">
      <widget class="QGroupBox" name="groupBox_recording">
       <property name="title">
@@ -44,22 +44,7 @@
       </layout>
      </widget>
     </item>
-    <item row="0" column="1">
-     <widget class="QGroupBox" name="groupBox_location">
-      <property name="title">
-       <string>File Location</string>
-      </property>
-      <layout class="QVBoxLayout" name="verticalLayout">
-       <item>
-        <widget class="QLineEdit" name="locationEdit"/>
-       </item>
-       <item>
-        <widget class="QLabel" name="locationLabel"/>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item row="1" column="0">
+    <item row="2" column="0">
      <widget class="QGroupBox" name="groupBox_streams">
       <property name="title">
        <string>Record from Streams</string>
@@ -106,163 +91,167 @@
       </layout>
      </widget>
     </item>
-    <item row="1" column="1">
-     <widget class="QGroupBox" name="groupBox_locationBuilder">
+    <item row="0" column="1">
+     <widget class="QGroupBox" name="groupBox_rootFolder">
       <property name="title">
-       <string>Location Builder</string>
+       <string>Saving to...</string>
       </property>
-      <layout class="QVBoxLayout" name="verticalLayout_locationBuilder">
-       <property name="title" stdset="0">
-        <string>Location Builder</string>
-       </property>
+      <layout class="QHBoxLayout" name="horizontalLayout_studyRoot">
        <item>
-        <widget class="QGroupBox" name="groupBox_rootFolder">
-         <property name="title">
-          <string>Study Root</string>
-         </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_studyRoot">
-          <item>
-           <widget class="QLineEdit" name="rootEdit"/>
-          </item>
-          <item>
-           <widget class="QPushButton" name="rootBrowseButton">
-            <property name="text">
-             <string>Browse...</string>
-            </property>
-            <property name="shortcut">
-             <string>Ctrl+B</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_blockTask">
-         <item>
-          <widget class="QLabel" name="label_currBlock">
-           <property name="text">
-            <string>Block/Task (%b):</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <widget class="QTabWidget" name="tabWidget_storage">
-         <property name="currentIndex">
-          <number>0</number>
-         </property>
-         <widget class="QWidget" name="tab_legacy">
-          <attribute name="title">
-           <string>Legacy Builder</string>
-          </attribute>
-          <widget class="QWidget" name="legacyLayoutWidget">
-           <property name="geometry">
-            <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>261</width>
-             <height>66</height>
-            </rect>
-           </property>
-           <layout class="QFormLayout" name="legacy_layout">
-            <item row="0" column="0">
-             <widget class="QLabel" name="label_expNum">
-              <property name="text">
-               <string>Exp num (%n)</string>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="1">
-             <widget class="QSpinBox" name="experimentNumberSpin">
-              <property name="minimum">
-               <number>1</number>
-              </property>
-              <property name="maximum">
-               <number>1000</number>
-              </property>
-              <property name="value">
-               <number>1</number>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </widget>
-         <widget class="QWidget" name="tab_bids">
-          <attribute name="title">
-           <string>BIDS Builder</string>
-          </attribute>
-          <widget class="QWidget" name="bidsLayoutWidget">
-           <property name="geometry">
-            <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>261</width>
-             <height>126</height>
-            </rect>
-           </property>
-           <layout class="QFormLayout" name="bids_layout">
-            <item row="0" column="0">
-             <widget class="QLabel" name="label_participant">
-              <property name="text">
-               <string>Participant (%p)</string>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="1">
-             <widget class="QLineEdit" name="lineEdit_participant"/>
-            </item>
-            <item row="1" column="0">
-             <widget class="QLabel" name="label_session">
-              <property name="text">
-               <string>Session (%s)</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="1">
-             <widget class="QLineEdit" name="lineEdit_session"/>
-            </item>
-            <item row="2" column="0">
-             <widget class="QLabel" name="label_acq">
-              <property name="text">
-               <string>Acq. (%a)</string>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLineEdit" name="lineEdit_acq"/>
-            </item>
-            <item row="3" column="0">
-             <widget class="QLabel" name="label_run">
-              <property name="text">
-               <string>Run (%r)</string>
-              </property>
-             </widget>
-            </item>
-            <item row="3" column="1">
-             <widget class="QSpinBox" name="spinBox_run">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="minimum">
-               <number>1</number>
-              </property>
-              <property name="maximum">
-               <number>1000</number>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </widget>
-        </widget>
+        <widget class="QLabel" name="locationLabel"/>
        </item>
       </layout>
+     </widget>
+    </item>
+    <item row="2" column="1">
+     <widget class="QScrollArea" name="scrollArea">
+      <property name="widgetResizable">
+       <bool>true</bool>
+      </property>
+      <widget class="QWidget" name="scrollAreaWidgetContents">
+       <layout class="QGridLayout" name="gridLayout_2">
+        <item row="3" column="0">
+         <widget class="QLabel" name="label_expNum">
+          <property name="text">
+           <string>Exp num (%n)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="label_session">
+          <property name="text">
+           <string>Session (%s)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QLineEdit" name="lineEdit_participant"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLineEdit" name="lineEdit_template"/>
+        </item>
+        <item row="5" column="1">
+         <widget class="QLineEdit" name="lineEdit_session"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLineEdit" name="rootEdit"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_currBlock">
+          <property name="text">
+           <string>Block/Task (%b):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="0">
+         <widget class="QLabel" name="label_run">
+          <property name="text">
+           <string>Run (%r)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QPushButton" name="rootBrowseButton">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+          <property name="shortcut">
+           <string>Ctrl+B</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="QSpinBox" name="spinBox_run">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>1000</number>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QLineEdit" name="lineEdit_acq"/>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="label_participant">
+          <property name="text">
+           <string>Participant (%p)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_template">
+          <property name="text">
+           <string>&lt;a href=&quot;https://github.com/labstreaminglayer/App-LabRecorder/doc/templates.md&quot;&gt;File Name/Template&lt;/a&gt;</string>
+          </property>
+          <property name="openExternalLinks">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_studyroot">
+          <property name="text">
+           <string>Study Root</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="label_acq">
+          <property name="text">
+           <string>Acq. (%a)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QCheckBox" name="check_bids">
+          <property name="text">
+           <string>BIDS</string>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="1">
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="3" column="1">
+         <widget class="QSpinBox" name="experimentNumberSpin">
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>1000</number>
+          </property>
+          <property name="value">
+           <number>1</number>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QComboBox" name="input_blocktask">
+          <property name="editable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
    </layout>
@@ -272,8 +261,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>650</width>
-     <height>21</height>
+     <width>1023</width>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

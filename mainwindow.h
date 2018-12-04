@@ -61,10 +61,7 @@ private:
 	QSet<QString> missingStreams;
 
 	//QString recFilename;
-	bool hasTasks = false;
-	QComboBox *taskBox;
-	QLineEdit *taskEdit;
-
+	QString legacyTemplate;
 	std::unique_ptr<Ui::MainWindow> ui; // window pointer
 };
 
