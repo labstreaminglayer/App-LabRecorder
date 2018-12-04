@@ -1,4 +1,4 @@
-#include "mainwindow.h"
+﻿#include "mainwindow.h"
 #include "ui_mainwindow.h"
 
 #include <QDateTime>
@@ -6,6 +6,8 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QSettings>
+#include <QStandardPaths>
+
 #include <string>
 #include <vector>
 
@@ -25,12 +27,8 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		this->save_config(QFileDialog::getSaveFileName(
 			this, "Save Configuration File", "", "Configuration Files (*.cfg)"));
 	});
-	connect(ui->browseButton, &QPushButton::clicked, [this]() {
-		this->ui->locationEdit->setText(QFileDialog::getSaveFileName(
-			this, "Save recordings as...", "untitled.xdf", "XDF recordings (*.xdf)"));
-	});
-	connect(ui->blockList, static_cast<void (QComboBox::*)(const QString &)>(&QComboBox::activated),
-		this, &MainWindow::blockSelected);
+
+	// Signals for stream finding/selecting/starting/stopping
 	connect(ui->refreshButton, &QPushButton::clicked, this, &MainWindow::refreshStreams);
 	connect(ui->selectAllButton, &QPushButton::clicked, this, &MainWindow::selectAllStreams);
 	connect(ui->selectNoneButton, &QPushButton::clicked, this, &MainWindow::selectNoStreams);
@@ -43,7 +41,40 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		QMessageBox::about(this, "About LabRecorder", infostr);
 	});
 
-	load_config(config_file);
+	// Wheenver lineEdit_template is changed, print the final result.
+	connect(
+		ui->lineEdit_template, &QLineEdit::textChanged, this, &MainWindow::printReplacedFilename);
+	auto spinchanged = static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged);
+	connect(ui->spin_counter, spinchanged, this, &MainWindow::printReplacedFilename);
+
+	// Signals for builder-related edits -> buildFilename
+	connect(ui->rootBrowseButton, &QPushButton::clicked, [this]() {
+		this->ui->rootEdit->setText(
+			QFileDialog::getExistingDirectory(this, "Study root folder..."));
+		this->buildFilename();
+	});
+	connect(ui->rootEdit, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
+	connect(
+		ui->lineEdit_participant, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
+	connect(ui->lineEdit_session, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
+	connect(ui->lineEdit_acq, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
+	connect(ui->input_blocktask, &QComboBox::currentTextChanged, this, &MainWindow::buildFilename);
+	connect(ui->check_bids, &QCheckBox::toggled, [this](bool checked) {
+		auto &box = *ui->lineEdit_template;
+		box.setReadOnly(checked);
+		if (checked) {
+			legacyTemplate = box.text();
+			box.setText(
+				QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf"));
+			ui->label_counter->setText("Run (%r)");
+		} else {
+			box.setText(legacyTemplate);
+			ui->label_counter->setText("Exp num (%n)");
+		}
+	});
+
+	QString cfgfilepath = find_config_file(config_file);
+	load_config(cfgfilepath);
 
 	timer = std::make_unique<QTimer>(this);
 	connect(&*timer, &QTimer::timeout, this, &MainWindow::statusUpdate);
@@ -56,6 +87,7 @@ MainWindow::~MainWindow() noexcept = default;
 void MainWindow::statusUpdate() const {
 	if (currentRecording) {
 		auto elapsed = static_cast<unsigned int>(lsl::local_clock() - startTime);
+		QString recFilename = replaceFilename(ui->lineEdit_template->text());
 		auto fileinfo = QFileInfo(recFilename);
 		fileinfo.refresh();
 		auto size = fileinfo.size();
@@ -76,10 +108,9 @@ void MainWindow::blockSelected(const QString &block) {
 		QMessageBox::information(this, "Still recording",
 			"Please stop recording before switching blocks.", QMessageBox::Ok);
 	else {
-		currentBlock = block;
+		printReplacedFilename();
 		// scripted action code here...
 	}
-	// std::cout << item->text().toStdString() <<std::endl;
 }
 
 void MainWindow::load_config(QString filename) {
@@ -97,7 +128,7 @@ void MainWindow::load_config(QString filename) {
 		// ----------------------------
 		// online sync streams
 		// ----------------------------
-		QStringList onlineSyncStreams = pt.value("OnlineSync", "").toStringList();
+		QStringList onlineSyncStreams = pt.value("OnlineSync", QStringList()).toStringList();
 		for (QString &oss : onlineSyncStreams) {
 			QStringList words = oss.split(' ', QString::SkipEmptyParts);
 			// The first two words ("StreamName (PC)") are the stream identifier
@@ -120,28 +151,73 @@ void MainWindow::load_config(QString filename) {
 		}
 
 		// ----------------------------
-		// recording location
+		// Block/Task Names
 		// ----------------------------
-		ui->blockList->addItems(pt.value("SessionBlocks").toStringList());
-		if (ui->blockList->count()) currentBlock = ui->blockList->itemText(0);
+		QStringList taskNames;
+		if (pt.contains("SessionBlocks")) { taskNames = pt.value("SessionBlocks").toStringList(); }
+		ui->input_blocktask->clear();
+		ui->input_blocktask->insertItems(0, taskNames);
 
-		// get the path as a string
-		QString str_path =
-			pt.value("StorageLocation", "C:/Recordings/CurrentStudy/exp%n/untitled.xdf").toString();
-		ui->locationEdit->setText(str_path);
+		// StorageLocation
+		QString studyRoot;
+		legacyTemplate.clear();
+		// StudyRoot
+		if (pt.contains("StudyRoot")) { studyRoot = pt.value("StudyRoot").toString(); }
 
-		// replace %n as experiment number placeholder
-		int pos_n = str_path.indexOf(QStringLiteral("%n"));
-		if (pos_n != -1) {
-			str_path[pos_n + 1] = '1';
-			for (int i = 1; i < 10000; i++) {
-				if (!QDir(str_path.arg(i)).exists()) {
-					// update gui
-					ui->experimentNumberSpin->setValue(i);
-					break;
-				}
+		if (pt.contains("StorageLocation")) {
+			if (!studyRoot.isEmpty())
+				throw std::runtime_error("Both StudyRoot and StorageLocation specified");
+			if (pt.contains("PathTemplate"))
+				throw std::runtime_error("Both StorageLocation and PathTemplate specified");
+
+			QString str_path = pt.value("StorageLocation").toString();
+			QString path_root;
+			auto index = str_path.indexOf('%');
+			if (index != -1) {
+				// When a % is encountered, the studyroot gets set to the
+				// longest path before the placeholder, e.g.
+				// foo/bar/baz%a/untitled.xdf gets split into
+				// foo/bar and baz%a/untitled.xdf
+				path_root = str_path.left(index);
+			} else
+				// Otherwise, it's split into folder and constant filename
+				path_root = str_path;
+			path_root = QFileInfo(path_root).path();
+			legacyTemplate = str_path.remove(0, path_root.length() + 1);
+			// absolute path, nothing to be done
+			studyRoot = QFileInfo(path_root).absolutePath();
+			ui->lineEdit_template->setText(legacyTemplate);
+		}
+		if (pt.contains("PathTemplate")) legacyTemplate = pt.value("PathTemplate").toString();
+
+		if (studyRoot.isEmpty())
+			studyRoot = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) +
+						QDir::separator() + "CurrentStudy";
+		ui->rootEdit->setText(studyRoot);
+
+		if (legacyTemplate.isEmpty()) {
+			ui->check_bids->setChecked(true);
+			// Legacy takes the form path/to/study/exp%n/%b.xdf
+			legacyTemplate = "exp%n/block_%b.xdf";
+		} else {
+			ui->check_bids->setChecked(false);
+			ui->lineEdit_template->setText(legacyTemplate);
+		}
+
+		buildFilename();
+
+		// Check the wild-card-replaced filename to see if it exists already.
+		// If it does then increment the exp number.
+		// We only do this on settings-load because manual spin changes might indicate purposeful overwriting.
+		QString recFilename = ui->lineEdit_template->text();
+		// Spin Number
+		if (recFilename.contains(counterPlaceholder())) {
+			for (int i = 1; i < 1001; i++) {
+				ui->spin_counter->setValue(i);
+				if (!QFileInfo::exists(replaceFilename(recFilename))) break;
 			}
 		}
+
 	} catch (std::exception &e) { qWarning() << "Problem parsing config file: " << e.what(); }
 	// std::cout << "refreshing streams ..." <<std::endl;
 	refreshStreams();
@@ -149,7 +225,9 @@ void MainWindow::load_config(QString filename) {
 
 void MainWindow::save_config(QString filename) {
 	QSettings settings(filename, QSettings::Format::IniFormat);
-	settings.setValue("StorageLocation", ui->locationEdit->text());
+	settings.setValue("StudyRoot", ui->lineEdit_template->text());
+	if (!ui->check_bids->isChecked())
+		settings.setValue("PathTemplate", ui->lineEdit_template->text());
 	qInfo() << requiredStreams;
 	settings.setValue("RequiredStreams", requiredStreams);
 	// Stub.
@@ -224,21 +302,12 @@ void MainWindow::startRecording() {
 			if (msgBox.exec() != QMessageBox::Yes) return;
 		}
 
-		// determine the experiment number block
-		// scan the path for %n/%1 and %b/%2
-		recFilename = ui->locationEdit->text();
+		QString recFilename = replaceFilename(ui->lineEdit_template->text());
 		if (recFilename.isEmpty()) {
 			QMessageBox::critical(this, "Filename empty", "Can not record without a file name");
 			return;
 		}
-
-		int pos_n = recFilename.indexOf("%n");
-		if (pos_n != -1)
-			recFilename.replace(pos_n, 2, QString::number(ui->experimentNumberSpin->value()));
-
-		int pos_b = recFilename.indexOf("%b");
-		if (pos_b != -1) // check to make sure it is there
-			recFilename.replace(pos_b, 2, currentBlock);
+		recFilename.prepend(ui->rootEdit->text() + QDir::separator());
 
 		QFileInfo recFileInfo(recFilename);
 		if (recFileInfo.exists()) {
@@ -247,8 +316,8 @@ void MainWindow::startRecording() {
 					this, "Error", "Recording path already exists and is a directory");
 				return;
 			}
-			QString rename_to = recFileInfo.absolutePath() + '/' + recFileInfo.baseName() +
-								"_old%1." + recFileInfo.suffix();
+			QString rename_to = recFileInfo.absolutePath() + QDir::separator() +
+								recFileInfo.baseName() + "_old%1." + recFileInfo.suffix();
 			// search for highest _oldN
 			int i = 1;
 			while (QFileInfo::exists(rename_to.arg(i))) i++;
@@ -321,4 +390,114 @@ void MainWindow::selectNoStreams() {
 		QListWidgetItem *item = ui->streamList->item(i);
 		item->setCheckState(Qt::Unchecked);
 	}
+}
+
+void MainWindow::buildBidsTemplate() {
+	// path/to/CurrentStudy/sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf
+
+	// Make sure the BIDS required fields are full.
+	if (ui->lineEdit_participant->text().isEmpty()) { ui->lineEdit_participant->setText("P001"); }
+	if (ui->lineEdit_session->text().isEmpty()) { ui->lineEdit_session->setText("S001"); }
+	if (ui->input_blocktask->currentText().isEmpty()) {
+		ui->input_blocktask->setCurrentText("Default");
+	}
+
+	// Folder hierarchy
+	QStringList fileparts{"sub-%p", "ses-%s", "eeg"};
+
+	// filename
+	QString fname = "sub-%p_ses-%s_task-%b";
+	if (!ui->lineEdit_acq->text().isEmpty()) { fname.append("_acq-%a"); }
+	fname.append("_run-%r_eeg.xdf");
+	fileparts << fname;
+	ui->lineEdit_template->setText(fileparts.join(QDir::separator()));
+}
+
+void MainWindow::buildFilename() {
+	// This function is only called when a widget within Location Builder is activated.
+
+	// Build the file location in parts, starting with the root folder.
+	if (ui->check_bids->isChecked()) buildBidsTemplate();
+	QString tpl = ui->lineEdit_template->text();
+
+	// Auto-increment Spin/Run Number if necessary.
+	if (tpl.contains(counterPlaceholder())) {
+		for (int i = 1; i < 1001; i++) {
+			ui->spin_counter->setValue(i);
+			if (!QFileInfo::exists(replaceFilename(tpl))) break;
+		}
+	}
+	// Sometimes lineEdit_template doesn't change so printReplacedFilename isn't triggered.
+	// So trigger manually.
+	printReplacedFilename();
+}
+
+QString MainWindow::replaceFilename(QString fullfile) const {
+	// Replace wildcards.
+	// There are two different wildcard formats: legacy, BIDS
+
+	// Legacy takes the form path/to/study/exp%n/%b.xdf
+	// Where %n will be replaced by the contents of the spin_counter widget
+	// and %b will be replaced by the contents of the blockList widget.
+	fullfile.replace("%b", ui->input_blocktask->currentText());
+
+	// BIDS
+	// See https://docs.google.com/document/d/1ArMZ9Y_quTKXC-jNXZksnedK2VHHoKP3HCeO5HPcgLE/
+	// path/to/study/sub-<participant_label>/ses-<session_label>/eeg/sub-<participant_label>_ses-<session_label>_task-<task_label>[_acq-<acq_label>]_run-<run_index>_eeg.xdf
+	// path/to/study/sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf
+	// %b already replaced above.
+	fullfile.replace("%p", ui->lineEdit_participant->text());
+	fullfile.replace("%s", ui->lineEdit_session->text());
+	fullfile.replace("%a", ui->lineEdit_acq->text());
+
+	// Replace either %r or %n with the counter
+	QString run = QString("%1").arg(ui->spin_counter->value(), 3, 10, QChar('0'));
+	fullfile.replace(counterPlaceholder(), run);
+
+	return fullfile;
+}
+
+/**
+ * Find a config file to load. This is (in descending order or preference):
+ * - a file supplied on the command line
+ * - [executablename].cfg in one the the following folders:
+ *	- the current working directory
+ *	- the default config folder, e.g. '~/Library/Preferences' on OS X
+ *	- the executable folder
+ * @param filename	Optional file name supplied e.g. as command line parameter
+ * @return Path to a found config file
+ */
+QString MainWindow::find_config_file(const char *filename) {
+	if (filename) {
+		QString qfilename(filename);
+		if (QFileInfo::exists(qfilename))
+			QMessageBox(QMessageBox::Warning, "Config file not found",
+				QStringLiteral("The file '%1' doesn't exist").arg(qfilename), QMessageBox::Ok,
+				this);
+		else
+			return qfilename;
+	}
+	QFileInfo exeInfo(QCoreApplication::applicationFilePath());
+	QString defaultCfgFilename(exeInfo.completeBaseName() + ".cfg");
+	qInfo() << defaultCfgFilename;
+	QStringList cfgpaths;
+	cfgpaths << QDir::currentPath()
+			 << QStandardPaths::standardLocations(QStandardPaths::ConfigLocation) << exeInfo.path();
+	for (auto path : cfgpaths) {
+		QString cfgfilepath = path + QDir::separator() + defaultCfgFilename;
+		if (QFileInfo::exists(cfgfilepath)) return cfgfilepath;
+	}
+	QMessageBox(QMessageBox::Warning, "No config file not found",
+		QStringLiteral("No default config file could be found"), QMessageBox::Ok, this);
+	return "";
+}
+
+QString MainWindow::counterPlaceholder() const
+{
+	return ui->check_bids->isChecked() ? "%r" : "%n";
+}
+
+void MainWindow::printReplacedFilename() {
+	ui->locationLabel->setText(
+		ui->rootEdit->text() + '\n' + replaceFilename(ui->lineEdit_template->text()));
 }

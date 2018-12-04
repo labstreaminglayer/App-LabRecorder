@@ -4,6 +4,7 @@
 // Qt
 #include "ui_mainwindow.h"
 
+#include <QComboBox>
 #include <QCloseEvent>
 #include <QListWidget>
 #include <QMainWindow>
@@ -40,28 +41,30 @@ private slots:
 	void stopRecording(void);
 	void selectAllStreams();
 	void selectNoStreams();
+	void buildFilename();
+	void buildBidsTemplate();
+	void printReplacedFilename();
 
 private:
 	QSet<QString> getCheckedStreams() const;
+	QString replaceFilename(QString fullfile) const;
+	// function for loading / saving the config file
+	QString find_config_file(const char *filename);
+	QString counterPlaceholder() const;
+	void load_config(QString filename);
+	void save_config(QString filename);
 
 	std::unique_ptr<recording> currentRecording;
 
 	int startTime;
 	std::unique_ptr<QTimer> timer;
 
-	int currentTrial;
-	QString currentBlock;
-
 	QStringList requiredStreams;
 	std::map<std::string, int> syncOptionsByStreamName;
 	QSet<QString> missingStreams;
 
-	QString recFilename;
-
-	// function for loading config file
-	void load_config(QString filename);
-	void save_config(QString filename);
-
+	//QString recFilename;
+	QString legacyTemplate;
 	std::unique_ptr<Ui::MainWindow> ui; // window pointer
 };
 

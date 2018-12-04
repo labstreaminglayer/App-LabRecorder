@@ -96,7 +96,7 @@ installLSLApp(${PROJECT_NAME})
 installLSLApp(LabRecorderCLI)
 installLSLApp(testxdfwriter)
 installLSLAuxFiles(${PROJECT_NAME}
-	default_config.cfg
+	${PROJECT_NAME}.cfg
 )
 
 LSLGenerateCPackConfig()
