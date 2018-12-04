@@ -47,7 +47,8 @@ private slots:
 private:
 	QSet<QString> getCheckedStreams() const;
 	QString replaceFilename(QString fullfile) const;
-	// function for loading config file
+	// function for loading / saving the config file
+	QString find_config_file(const char *filename);
 	void load_config(QString filename);
 	void save_config(QString filename);
 

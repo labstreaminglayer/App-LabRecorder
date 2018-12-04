@@ -69,7 +69,8 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		}
 	});
 
-	load_config(config_file);
+	QString cfgfilepath = find_config_file(config_file);
+	load_config(cfgfilepath);
 
 	timer = std::make_unique<QTimer>(this);
 	connect(&*timer, &QTimer::timeout, this, &MainWindow::statusUpdate);
@@ -439,6 +440,40 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 	fullfile.replace("%r", QString("%1").arg(ui->spinBox_run->value(), 3, 10, QChar('0')));
 
 	return fullfile;
+}
+
+/**
+ * Find a config file to load. This is (in descending order or preference):
+ * - a file supplied on the command line
+ * - [executablename].cfg in one the the following folders:
+ *	- the current working directory
+ *	- the default config folder, e.g. '~/Library/Preferences' on OS X
+ *	- the executable folder
+ * @param filename	Optional file name supplied e.g. as command line parameter
+ * @return Path to a found config file
+ */
+QString MainWindow::find_config_file(const char *filename) {
+	if (filename) {
+		QString qfilename(filename);
+		if (QFileInfo::exists(qfilename))
+			QMessageBox(QMessageBox::Warning, "Config file not found",
+				QStringLiteral("The file '%1' doesn't exist").arg(qfilename), QMessageBox::Ok,
+				this);
+		else
+			return qfilename;
+	}
+	QFileInfo exeInfo(QCoreApplication::applicationFilePath());
+	QString defaultCfgFilename(exeInfo.completeBaseName() + ".cfg");
+	QStringList cfgpaths;
+	cfgpaths << QDir::currentPath()
+			 << QStandardPaths::standardLocations(QStandardPaths::ConfigLocation) << exeInfo.path();
+	for (auto path : cfgpaths) {
+		QString cfgfilepath = path + QDir::separator() + defaultCfgFilename;
+		if (QFileInfo::exists(cfgfilepath)) return cfgfilepath;
+	}
+	QMessageBox(QMessageBox::Warning, "No config file not found",
+		QStringLiteral("No default config file could be found"), QMessageBox::Ok, this);
+	return "";
 }
 
 void MainWindow::printReplacedFilename() {
