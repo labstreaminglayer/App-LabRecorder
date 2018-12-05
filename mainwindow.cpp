@@ -487,8 +487,8 @@ QString MainWindow::find_config_file(const char *filename) {
 		QString cfgfilepath = path + QDir::separator() + defaultCfgFilename;
 		if (QFileInfo::exists(cfgfilepath)) return cfgfilepath;
 	}
-	QMessageBox(QMessageBox::Warning, "No config file not found",
-		QStringLiteral("No default config file could be found"), QMessageBox::Ok, this);
+	QMessageBox::warning(this, "No config file not found",
+		QStringLiteral("No default config file could be found"), "Continue with default config");
 	return "";
 }
 
