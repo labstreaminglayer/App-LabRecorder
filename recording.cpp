@@ -373,14 +373,16 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		std::vector<double> timestamps;
 
 		// Pull the first sample
-		first_timestamp = last_timestamp = in->pull_sample(chunk);
+		first_timestamp = 0.0;
+		while(first_timestamp == 0.0)
+			first_timestamp = last_timestamp = in->pull_sample(chunk, 4.0);
 		timestamps.push_back(first_timestamp);
 		file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
 
 		auto next_pull = Clock::now();
 		while (!shutdown_) {
 			// get a chunk from the stream
-			in->pull_chunk_multiplexed(chunk, &timestamps);
+			in->pull_chunk_multiplexed(chunk, &timestamps, 4.0);
 			// for each sample...
 			for (double &ts : timestamps) {
 				// if the time stamp can be deduced from the previous one...
