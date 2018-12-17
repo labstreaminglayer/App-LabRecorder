@@ -51,7 +51,7 @@ inline void timed_join_or_detach(
 	thread_p &thread, std::chrono::milliseconds duration = max_join_wait) {
 	if (!timed_join(thread, duration)) {
 		thread->detach();
-		std::cerr << "Thread didn't join in time!" << std::endl;
+		Logger::log_error("Thread didn't join in time!");
 	}
 }
 
@@ -75,7 +75,7 @@ inline void timed_join_or_detach(
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	}
 	if (!threads.empty()) {
-		std::cout << threads.size() << " stream threads still running!" << std::endl;
+		Logger::log_warning(threads.size() + " stream threads still running!");
 		for (auto &t : threads) t->detach();
 		threads.clear();
 	}
@@ -107,12 +107,12 @@ recording::~recording() {
 		// stop the threads
 		timed_join_or_detach(stream_threads_, max_join_wait);
 		if (!timed_join(boundary_thread_, max_join_wait + boundary_interval)) {
-			std::cout << "boundary_thread didn't finish in time!" << std::endl;
+			Logger::log_warning("boundary_thread didn't finish in time!");
 			boundary_thread_->detach();
 		}
-		std::cout << "Closing the file." << std::endl;
+		Logger::log_info("Closing the file.");
 	} catch (std::exception &e) {
-		std::cout << "Error while closing the recording: " << e.what() << std::endl;
+		Logger::log_error("Error while closing the recording: " + std::string(e.what()));
 	}
 }
 
@@ -121,7 +121,7 @@ void recording::record_from_query_results(const std::string &query) {
 		std::set<std::string> known_uids;		// set of previously seen stream uid's
 		std::set<std::string> known_source_ids; // set of previously seen source id's
 		std::list<thread_p> threads;			// our spawned threads
-		std::cout << "Watching for a stream with properties " << query << std::endl;
+		Logger::log_info("Watching for a stream with properties " + query);
 		while (!shutdown_) {
 			// periodically re-resolve the query
 			std::vector<lsl::stream_info> results = lsl::resolve_stream(query, 0, resolve_interval);
@@ -132,8 +132,7 @@ void recording::record_from_query_results(const std::string &query) {
 					// and doesn't have a previously seen source id...
 					if (!(!result.source_id().empty() &&
 							(!known_source_ids.count(result.source_id())))) {
-						std::cout << "Found a new stream named " << result.name()
-								  << ", adding it to the recording." << std::endl;
+						Logger::log_info("Found a new stream named " + result.name() + ", adding it to the recording.");
 						// start a new recording thread
 						threads.emplace_back(new std::thread(
 							&recording::record_from_streaminfo, this, result, false));
@@ -147,7 +146,7 @@ void recording::record_from_query_results(const std::string &query) {
 		// wait for all our threads to join
 		timed_join_or_detach(threads, max_join_wait);
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_from_query_results thread: " << e.what() << std::endl;
+		Logger::log_error("Error in the record_from_query_results thread: " + std::string(e.what()));
 	}
 }
 
@@ -172,18 +171,16 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 
 			try {
 				in->open_stream(max_open_wait);
-				std::cout << "Opened the stream " << src.name() << "." << std::endl;
+				Logger::log_info("Opened the stream " + src.name() + ".");
 			} catch (lsl::timeout_error &) {
-				std::cout
-					<< "Subscribing to the stream " << src.name()
-					<< " is taking relatively long; collection from this stream will be delayed."
-					<< std::endl;
+				Logger::log_warning("Subscribing to the stream " + src.name()
+					+ " is taking relatively long; collection from this stream will be delayed.");
 			}
 
 			// retrieve the stream header & get its XML version
 			info = in->info();
 			file_.write_stream_header(streamid, info.as_xml());
-			std::cout << "Received header for stream " << src.name() << "." << std::endl;
+			Logger::log_info("Received header for stream " + src.name() + ".");
 
 			leave_headers_phase(phase_locked);
 		} catch (std::exception &) {
@@ -200,7 +197,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			// "forgot to turn on" before the recording started; in that case the file would have to
 			// be post-processed to be in properly sorted (seekable) format
 			enter_streaming_phase(phase_locked);
-			std::cout << "Started data collection for stream " << src.name() << "." << std::endl;
+			Logger::log_info("Started data collection for stream " + src.name() + ".");
 
 			// now write the actual sample chunks...
 			switch (src.channel_format()) {
@@ -263,14 +260,14 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			}
 			file_.write_stream_footer(streamid, footer.str());
 
-			std::cout << "Wrote footer for stream " << src.name() << "." << std::endl;
+			Logger::log_info("Wrote footer for stream " + src.name() + ".");
 			leave_footers_phase(phase_locked);
 		} catch (std::exception &) {
 			leave_footers_phase(phase_locked);
 			throw;
 		}
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_from_streaminfo thread: " << e.what() << std::endl;
+		Logger::log_error("Error in the record_from_streaminfo thread: " + std::string(e.what()));
 	}
 }
 
@@ -285,7 +282,7 @@ void recording::record_boundaries() {
 			}
 		}
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_boundaries thread: " << e.what() << std::endl;
+		Logger::log_error("Error in the record_boundaries thread: " + std::string(e.what()));
 	}
 }
 
@@ -301,8 +298,7 @@ void recording::record_offsets(
 				offset = in->time_correction(2);
 				now = lsl::local_clock();
 			} catch (lsl::timeout_error &) {
-				std::cerr << "Timeout in time correction query for stream " << streamid
-						  << std::endl;
+				Logger::log_warning("Timeout in time correction query for stream: " + streamid);
 			}
 			file_.write_stream_offset(streamid, now, offset);
 			// also append to the offset lists
@@ -310,9 +306,9 @@ void recording::record_offsets(
 			offset_lists_[streamid].emplace_back(now - offset, offset);
 		}
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_offsets thread: " << e.what() << std::endl;
+		Logger::log_error("Error in the record_offsets thread: " + std::string(e.what()));
 	}
-	std::cout << "Offsets thread is finished" << std::endl;
+	Logger::log_info("Offsets thread is finished.");
 }
 
 void recording::enter_headers_phase(bool phase_locked) {
@@ -373,16 +369,14 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		std::vector<double> timestamps;
 
 		// Pull the first sample
-		first_timestamp = 0.0;
-		while(first_timestamp == 0.0)
-			first_timestamp = last_timestamp = in->pull_sample(chunk, 4.0);
+		first_timestamp = last_timestamp = in->pull_sample(chunk);
 		timestamps.push_back(first_timestamp);
 		file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
 
 		auto next_pull = Clock::now();
 		while (!shutdown_) {
 			// get a chunk from the stream
-			in->pull_chunk_multiplexed(chunk, &timestamps, 4.0);
+			in->pull_chunk_multiplexed(chunk, &timestamps);
 			// for each sample...
 			for (double &ts : timestamps) {
 				// if the time stamp can be deduced from the previous one...
@@ -400,7 +394,7 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			std::this_thread::sleep_until(next_pull);
 		}
 	} catch (std::exception &e) {
-		std::cerr << "Error in transfer thread: " << e.what() << std::endl;
+		Logger::log_error("Error in transfer thread: " + std::string(e.what()));
 		offset_shutdown = true;
 		timed_join_or_detach(offset_thread);
 		throw;
