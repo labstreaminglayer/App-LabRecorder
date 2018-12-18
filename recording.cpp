@@ -1,4 +1,5 @@
 #include "recording.h"
+#include "logger.h"
 //#include "conversions.h"
 
 #include <set>
@@ -75,7 +76,7 @@ inline void timed_join_or_detach(
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	}
 	if (!threads.empty()) {
-		Logger::log_warning(threads.size() + " stream threads still running!");
+		Logger::log_warning(std::to_string(threads.size()) + " stream threads still running!");
 		for (auto &t : threads) t->detach();
 		threads.clear();
 	}
