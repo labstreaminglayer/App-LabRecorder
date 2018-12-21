@@ -470,7 +470,7 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 QString MainWindow::find_config_file(const char *filename) {
 	if (filename) {
 		QString qfilename(filename);
-		if (QFileInfo::exists(qfilename))
+		if (!QFileInfo::exists(qfilename))
 			QMessageBox(QMessageBox::Warning, "Config file not found",
 				QStringLiteral("The file '%1' doesn't exist").arg(qfilename), QMessageBox::Ok,
 				this);
