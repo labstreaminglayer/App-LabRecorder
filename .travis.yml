@@ -1,7 +1,7 @@
 language: cpp
 compiler: clang
 env:
-  DODEPLOY=0
+  # DODEPLOY=0
   LSL_VERSION="1.13.0-b3"
 matrix:
   include:
@@ -31,11 +31,6 @@ script:
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then for app in *.app; do /usr/local/opt/qt/bin/macdeployqt
   ${app} -dmg; mv "${app%.app}.dmg" "${app%.app}-${LSL_VERSION}-${TRAVIS_OSX_IMAGE}.dmg";
   done; fi
-before_deploy:
-  - pwd
-  - ls -all
-  - export RELEASE_DMG=$(ls *.dmg)
-  - echo "deploying $RELEASE_DMG to GitHub releases"
 deploy:
   provider: releases
   skip_cleanup: true
