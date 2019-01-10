@@ -35,3 +35,11 @@ artifacts:
 - path: 'build/*.deb'
 - path: 'build/*.tar.*'
 - path: 'build/*.7z'
+deploy:
+  provider: GitHub
+  auth_token:
+    secure: XzGnVTRjZI2AuQzR5A6qPgZViAAbBVq7/VhM7O8kyTmjIkvUjH1RrwWiFLuinsus
+  force_update: true
+  on:
+    branch: master
+    APPVEYOR_REPO_TAG: true
