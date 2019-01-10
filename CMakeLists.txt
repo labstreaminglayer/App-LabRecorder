@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 project(LabRecorder
 	LANGUAGES CXX
-	VERSION 1.12.0)
+	VERSION 1.13.0)
 
 include(Findliblsl.cmake)
 
@@ -20,29 +20,29 @@ find_package(Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Threads REQUIRED)
 
 add_executable(${PROJECT_NAME} MACOSX_BUNDLE #WIN32
-	main.cpp
-	mainwindow.cpp
-	mainwindow.h
-	mainwindow.ui
-	recording.h
-	recording.cpp
-	conversions.h
-	xdfwriter.h
-	xdfwriter.cpp
+	src/main.cpp
+	src/mainwindow.cpp
+	src/mainwindow.h
+	src/mainwindow.ui
+	src/recording.h
+	src/recording.cpp
+	src/conversions.h
+	src/xdfwriter.h
+	src/xdfwriter.cpp
 )
 
 add_executable(LabRecorderCLI MACOSX_BUNDLE
-	clirecorder.cpp
-	recording.h
-	recording.cpp
-	xdfwriter.h
-	xdfwriter.cpp
+	src/clirecorder.cpp
+	src/recording.h
+	src/recording.cpp
+	src/xdfwriter.h
+	src/xdfwriter.cpp
 )
 
 add_executable(testxdfwriter
-	test_xdf_writer.cpp
-	xdfwriter.h
-	xdfwriter.cpp
+	src/test_xdf_writer.cpp
+	src/xdfwriter.h
+	src/xdfwriter.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -61,7 +61,7 @@ target_link_libraries(LabRecorderCLI
 # Test for floating point format and endianness
 try_run(IS_LITTLE_ENDIAN IS_IEC559
 	${CMAKE_CURRENT_BINARY_DIR}
-	"${CMAKE_CURRENT_SOURCE_DIR}/test_iec559_and_little_endian.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/src/test_iec559_and_little_endian.cpp"
 	CMAKE_FLAGS "-DCMAKE_CXX_STANDARD=14" "-DCMAKE_CXX_STANDARD_REQUIRED=On"
 	COMPILE_OUTPUT_VARIABLE IEC559_COMPILE)
 message(STATUS "Little endian: ${IS_LITTLE_ENDIAN}")
