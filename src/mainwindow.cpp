@@ -50,7 +50,8 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	// Signals for builder-related edits -> buildFilename
 	connect(ui->rootBrowseButton, &QPushButton::clicked, [this]() {
 		this->ui->rootEdit->setText(
-			QFileDialog::getExistingDirectory(this, "Study root folder..."));
+			QDir::toNativeSeparators(
+				QFileDialog::getExistingDirectory(this, "Study root folder...")));
 		this->buildFilename();
 	});
 	connect(ui->rootEdit, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
@@ -65,10 +66,11 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		if (checked) {
 			legacyTemplate = box.text();
 			box.setText(
-				QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf"));
+				QDir::toNativeSeparators(
+					QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf")));
 			ui->label_counter->setText("Run (%r)");
 		} else {
-			box.setText(legacyTemplate);
+			box.setText(QDir::toNativeSeparators(legacyTemplate));
 			ui->label_counter->setText("Exp num (%n)");
 		}
 	});
@@ -87,14 +89,14 @@ MainWindow::~MainWindow() noexcept = default;
 void MainWindow::statusUpdate() const {
 	if (currentRecording) {
 		auto elapsed = static_cast<unsigned int>(lsl::local_clock() - startTime);
-		QString recFilename = replaceFilename(ui->lineEdit_template->text());
-		auto fileinfo = QFileInfo(recFilename);
+		QString recFilename = replaceFilename(QDir::cleanPath(ui->lineEdit_template->text()));
+		auto fileinfo = QFileInfo(QDir::cleanPath(ui->rootEdit->text()) + '/' + recFilename);
 		fileinfo.refresh();
 		auto size = fileinfo.size();
-		QString timeString = QStringLiteral("Recording to %1 (%2); %3kb)")
-								 .arg(fileinfo.fileName(),
-									 QDateTime::fromTime_t(elapsed).toUTC().toString("hh:mm:ss"),
-									 QString::number(size / 1000));
+		QString timeString = QStringLiteral("Recording to %1 (%2; %3kb)")
+				.arg(QDir::toNativeSeparators(recFilename),
+					QDateTime::fromTime_t(elapsed).toUTC().toString("hh:mm:ss"),
+					QString::number(size / 1000));
 		statusBar()->showMessage(timeString);
 	}
 }
@@ -114,11 +116,11 @@ void MainWindow::blockSelected(const QString &block) {
 }
 
 void MainWindow::load_config(QString filename) {
-	qInfo() << "loading config file " << filename;
+	qInfo() << "loading config file " << QDir::toNativeSeparators(filename);
 	try {
 		// if (!QFileInfo::exists(filename)) throw std::runtime_error("Settings file doesn't
 		// exist.");
-		QSettings pt(filename, QSettings::Format::IniFormat);
+		QSettings pt(QDir::cleanPath(filename), QSettings::Format::IniFormat);
 
 		// ----------------------------
 		// required streams
@@ -186,14 +188,14 @@ void MainWindow::load_config(QString filename) {
 			legacyTemplate = str_path.remove(0, path_root.length() + 1);
 			// absolute path, nothing to be done
 			studyRoot = QFileInfo(path_root).absolutePath();
-			ui->lineEdit_template->setText(legacyTemplate);
+			ui->lineEdit_template->setText(QDir::toNativeSeparators(legacyTemplate));
 		}
 		if (pt.contains("PathTemplate")) legacyTemplate = pt.value("PathTemplate").toString();
 
 		if (studyRoot.isEmpty())
 			studyRoot = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) +
 						QDir::separator() + "CurrentStudy";
-		ui->rootEdit->setText(studyRoot);
+		ui->rootEdit->setText(QDir::toNativeSeparators(studyRoot));
 
 		if (legacyTemplate.isEmpty()) {
 			ui->check_bids->setChecked(true);
@@ -201,7 +203,7 @@ void MainWindow::load_config(QString filename) {
 			legacyTemplate = "exp%n/block_%b.xdf";
 		} else {
 			ui->check_bids->setChecked(false);
-			ui->lineEdit_template->setText(legacyTemplate);
+			ui->lineEdit_template->setText(QDir::toNativeSeparators(legacyTemplate));
 		}
 
 		buildFilename();
@@ -209,7 +211,7 @@ void MainWindow::load_config(QString filename) {
 		// Check the wild-card-replaced filename to see if it exists already.
 		// If it does then increment the exp number.
 		// We only do this on settings-load because manual spin changes might indicate purposeful overwriting.
-		QString recFilename = ui->lineEdit_template->text();
+		QString recFilename = QDir::cleanPath(ui->lineEdit_template->text());
 		// Spin Number
 		if (recFilename.contains(counterPlaceholder())) {
 			for (int i = 1; i < 1001; i++) {
@@ -225,9 +227,9 @@ void MainWindow::load_config(QString filename) {
 
 void MainWindow::save_config(QString filename) {
 	QSettings settings(filename, QSettings::Format::IniFormat);
-	settings.setValue("StudyRoot", ui->lineEdit_template->text());
+	settings.setValue("StudyRoot", QDir::cleanPath(ui->lineEdit_template->text()));
 	if (!ui->check_bids->isChecked())
-		settings.setValue("PathTemplate", ui->lineEdit_template->text());
+		settings.setValue("PathTemplate", QDir::cleanPath(ui->lineEdit_template->text()));
 	qInfo() << requiredStreams;
 	settings.setValue("RequiredStreams", requiredStreams);
 	// Stub.
@@ -302,12 +304,12 @@ void MainWindow::startRecording() {
 			if (msgBox.exec() != QMessageBox::Yes) return;
 		}
 
-		QString recFilename = replaceFilename(ui->lineEdit_template->text());
+		QString recFilename = replaceFilename(QDir::cleanPath(ui->lineEdit_template->text()));
 		if (recFilename.isEmpty()) {
 			QMessageBox::critical(this, "Filename empty", "Can not record without a file name");
 			return;
 		}
-		recFilename.prepend(ui->rootEdit->text() + QDir::separator());
+		recFilename.prepend(QDir::cleanPath(ui->rootEdit->text()) + '/');
 
 		QFileInfo recFileInfo(recFilename);
 		if (recFileInfo.exists()) {
@@ -316,7 +318,7 @@ void MainWindow::startRecording() {
 					this, "Error", "Recording path already exists and is a directory");
 				return;
 			}
-			QString rename_to = recFileInfo.absolutePath() + QDir::separator() +
+			QString rename_to = recFileInfo.absolutePath() + '/' +
 								recFileInfo.baseName() + "_old%1." + recFileInfo.suffix();
 			// search for highest _oldN
 			int i = 1;
@@ -324,8 +326,7 @@ void MainWindow::startRecording() {
 			QString newname = rename_to.arg(i);
 			if (!QFile::rename(recFileInfo.absoluteFilePath(), newname)) {
 				QMessageBox::warning(this, "Permissions issue",
-					"Can not rename the file " + recFilename + " to " + recFileInfo.path() + '/' +
-						newname);
+					"Cannot rename the file " + recFilename + " to " + newname);
 				return;
 			}
 			qInfo() << "Moved existing file to " << newname;
@@ -410,7 +411,7 @@ void MainWindow::buildBidsTemplate() {
 	if (!ui->lineEdit_acq->text().isEmpty()) { fname.append("_acq-%a"); }
 	fname.append("_run-%r_eeg.xdf");
 	fileparts << fname;
-	ui->lineEdit_template->setText(fileparts.join(QDir::separator()));
+	ui->lineEdit_template->setText(QDir::toNativeSeparators(fileparts.join('/')));
 }
 
 void MainWindow::buildFilename() {
@@ -418,7 +419,7 @@ void MainWindow::buildFilename() {
 
 	// Build the file location in parts, starting with the root folder.
 	if (ui->check_bids->isChecked()) buildBidsTemplate();
-	QString tpl = ui->lineEdit_template->text();
+	QString tpl = QDir::cleanPath(ui->lineEdit_template->text());
 
 	// Auto-increment Spin/Run Number if necessary.
 	if (tpl.contains(counterPlaceholder())) {
