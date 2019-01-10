@@ -1,7 +1,6 @@
 language: cpp
 compiler: clang
 env:
-  # DODEPLOY=0
   LSL_VERSION="1.13.0-b3"
 matrix:
   include:
@@ -41,4 +40,4 @@ deploy:
   - LabRecorderCLI-${LSL_VERSION}-${TRAVIS_OSX_IMAGE}.dmg
   on:
     repo: labstreaminglayer/App-LabRecorder
-    condition: $TRAVIS_TAG || $DODEPLOY
+    tags: true
