@@ -382,7 +382,7 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		auto next_pull = Clock::now();
 		while (!shutdown_) {
 			// get a chunk from the stream
-			in->pull_chunk_multiplexed(chunk, &timestamps, 4.0);
+			in->pull_chunk_multiplexed(chunk, &timestamps, 1e-6);
 			// for each sample...
 			for (double &ts : timestamps) {
 				// if the time stamp can be deduced from the previous one...
