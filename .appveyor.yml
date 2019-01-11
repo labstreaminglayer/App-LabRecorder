@@ -27,7 +27,7 @@ build_script:
 - cmd: call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
 - mkdir build
 - cd build
-- cmd: cmake -G Ninja -DQt5_DIR=C:/Qt/%QTVER%/%QTCOMPILER%/lib/cmake/Qt5 -DBOOST_ROOT=C:/Libraries/boost_1_67_0 -DLSL_INSTALL_ROOT=LSL/ %CMakeArgs% ../
+- cmd: cmake -G Ninja -DQt5_DIR=C:/Qt/%QTVER%/%QTCOMPILER%/lib/cmake/Qt5 -DBOOST_ROOT=C:/Libraries/boost_1_67_0 -DLSL_INSTALL_ROOT=LSL/ -DCMAKE_BUILD_TYPE=Release %CMakeArgs% ../
 - sh: cmake -DLSL_INSTALL_ROOT=LSL/usr -DLSL_UNIXFOLDERS=1 ${CMakeArgs} ..
 - cmake --build . --config Release --target install
 - cpack
