@@ -52,6 +52,10 @@ public:
 	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,
 		const std::vector<std::vector<T>> &chunk);
 
+	template <typename T>
+	void write_better_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
+		const T *chunk, uint32_t n_samples);
+
 	/**
 	 * Write the stream header and add the stream header to the file
 	 * @brief write_stream_header Write the stream header, see also
@@ -155,17 +159,29 @@ void XDFWriter::write_data_chunk_nested(streamid_t streamid, const std::vector<d
 
 template <typename T>
 void XDFWriter::write_better_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-	const T *chunk, uint32_t n_samples, uint32_t n_channels) {
+	const T *chunk, uint32_t n_samples) {
 	/**
 	  Samples data chunk: [Tag 7] [VLA ChunkLen] [StreamID] [uint32 NumSamples]
 	  [Timestamps, double]
 	  [NumSamples x NumChannels Sample]
 	  */
+	auto streamit = streams.find(streamid);
+	if(streamit==streams.end()) throw std::runtime_error("...");
+	auto& stream = streamit->second;
+	auto n_channels = stream.nchannels;
 	if (n_samples == 0) return;
 	if (timestamps.size() != n_samples)
 		throw std::runtime_error("timestamp / sample count mismatch");
 
+	auto streamit = streams.find(streamid);
+	if(streamit == streams.end())
+		throw std::runtime_error("Unknown stream id");
+	const auto& stream = streamit->second;
+	auto n_channels = stream.nchannels;
+
 	uint8_t sampletype = lsltype<T>::index;
+	if(static_cast<uint8_t>(stream.sampletype) != sampletype)
+		throw std::runtime_error("Mismatching sample types");
 	auto len = 2 * sizeof(uint32_t) + sizeof(sampletype) + timestamps.size() * sizeof(double) + n_samples * n_channels * sizeof(T);
 	std::lock_guard<std::mutex> lock(write_mut);
 	_write_chunk_header(chunk_tag_t::samples_v2, len, &streamid);

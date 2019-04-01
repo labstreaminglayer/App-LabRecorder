@@ -11,7 +11,8 @@ int main(int argc, char **argv) {
 		"<last_timestamp>5.9</last_timestamp>"
 		"<sample_count>9</sample_count>"
 		"<clock_offsets>"
-		"<offset><time>50979.7660030605</time><value>-3.436503902776167e-06</value></offset>"
+		"<offset><time>50979.76</time><value>-.01</value></offset>"
+		"<offset><time>50979.86</time><value>-.02</value></offset>"
 		"</clock_offsets></info>");
 	w.add_stream(0,
 		"<?xml version=\"1.0\"?>"
@@ -22,7 +23,8 @@ int main(int argc, char **argv) {
 		"<nominal_srate>10</nominal_srate>"
 		"<channel_format>int16</channel_format>"
 		"<created_at>50942.723319709003</created_at>"
-		"<desc>Apparently needed</desc>"
+		"<desc/>"
+		"<uid>xdfwriter_11_int</uid>"
 		"</info>",
 		3, Stream::Sampletype::int16_, "SendDataC");
 	w.add_stream(sid,
@@ -34,7 +36,8 @@ int main(int argc, char **argv) {
 		"<nominal_srate>10</nominal_srate>"
 		"<channel_format>string</channel_format>"
 		"<created_at>50942.723319709003</created_at>"
-		"<desc>Apparently needed</desc>"
+		"<desc/>"
+		"<uid>xdfwriter_11_int</uid>"
 		"</info>",
 		1, Stream::Sampletype::string_, "SendDataString");
 	w.write_boundary_chunk();
@@ -61,7 +64,9 @@ int main(int argc, char **argv) {
 
 	w.write_boundary_chunk();
 	w.write_stream_offset(0, 6, -.1);
-	w.write_stream_offset(sid, 5, -.2);
+	w.write_stream_offset(0, 7, -.1);
+	//w.write_stream_offset(sid, 5, -.2);
+	//w.write_stream_offset(sid, 6, -.2);
 
 	w.write_stream_footer(0, footer);
 	w.write_stream_footer(sid, footer);
@@ -76,7 +81,8 @@ int main(int argc, char **argv) {
 		"<nominal_srate>10</nominal_srate>"
 		"<channel_format>int16</channel_format>"
 		"<created_at>50942.723319709003</created_at>"
-		"<desc>Apparently needed</desc>"
+		"<desc/>"
+		"<uid>xdfwriter_11_int</uid>"
 		"</info>",
 		3, Stream::Sampletype::int16_, "SendDataC");
 	w2.add_stream(sid,
@@ -88,7 +94,8 @@ int main(int argc, char **argv) {
 		"<nominal_srate>10</nominal_srate>"
 		"<channel_format>string</channel_format>"
 		"<created_at>50942.723319709003</created_at>"
-		"<desc>Apparently needed</desc>"
+		"<desc/>"
+		"<uid>xdfwriter_11_str</uid>"
 		"</info>",
 		2, Stream::Sampletype::string_, "SendDataString");
 	w2.write_boundary_chunk();
@@ -101,8 +108,8 @@ int main(int argc, char **argv) {
 
 	// write multiple samples
 	std::vector<std::string> data_2ch_str{"Hello", "Hallo", "World", "Welt", "from", "von", "LSL", "LSL"};
-	w2.write_better_data_chunk(0, ts, data.data(), 4, 3);
-	w2.write_better_data_chunk(sid, ts, data_2ch_str.data(), 4, 2);
+	w2.write_better_data_chunk(0, ts, data.data(), 4);
+	w2.write_better_data_chunk(sid, ts, data_2ch_str.data(), 4);
 
 	w2.write_boundary_chunk();
 	w2.write_stream_offset(0, 6, -.1);
