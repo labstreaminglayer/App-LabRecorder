@@ -12,24 +12,28 @@ int main(int argc, char **argv) {
 		"<clock_offsets>"
 		"<offset><time>50979.7660030605</time><value>-3.436503902776167e-06</value></offset>"
 		"</clock_offsets></info>");
-	w.write_stream_header(0, "<?xml version=\"1.0\"?>"
-							 "<info>"
-							 "<name>SendDataC</name>"
-							 "<type>EEG</type>"
-							 "<channel_count>3</channel_count>"
-							 "<nominal_srate>10</nominal_srate>"
-							 "<channel_format>int16</channel_format>"
-							 "<created_at>50942.723319709003</created_at>"
-							 "</info>");
-	w.write_stream_header(sid, "<?xml version=\"1.0\"?>"
-							   "<info>"
-							   "<name>SendDataString</name>"
-							   "<type>StringMarker</type>"
-							   "<channel_count>1</channel_count>"
-							   "<nominal_srate>10</nominal_srate>"
-							   "<channel_format>string</channel_format>"
-							   "<created_at>50942.723319709003</created_at>"
-							   "</info>");
+	w.add_stream(0,
+		"<?xml version=\"1.0\"?>"
+		"<info>"
+		"<name>SendDataC</name>"
+		"<type>EEG</type>"
+		"<channel_count>3</channel_count>"
+		"<nominal_srate>10</nominal_srate>"
+		"<channel_format>int16</channel_format>"
+		"<created_at>50942.723319709003</created_at>"
+		"</info>",
+		3, Stream::Sampletype::int16_, "SendDataC");
+	w.add_stream(sid,
+		"<?xml version=\"1.0\"?>"
+		"<info>"
+		"<name>SendDataString</name>"
+		"<type>StringMarker</type>"
+		"<channel_count>1</channel_count>"
+		"<nominal_srate>10</nominal_srate>"
+		"<channel_format>string</channel_format>"
+		"<created_at>50942.723319709003</created_at>"
+		"</info>",
+		1, Stream::Sampletype::string_, "SendDataC");
 	w.write_boundary_chunk();
 
 	// write a single int16_t sample

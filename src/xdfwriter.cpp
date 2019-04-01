@@ -53,7 +53,11 @@ void XDFWriter::_write_chunk_header(
 	if (streamid_p) write_little_endian(file_, *streamid_p);
 }
 
-void XDFWriter::write_stream_header(streamid_t streamid, const std::string &content) {
+void XDFWriter::add_stream(streamid_t streamid, const std::string &content, uint32_t nchannels,
+	Stream::Sampletype sampletype, std::string name) {
+	if(streams.find(streamid)!=streams.cend())
+		throw std::runtime_error("Duplicate stream id");
+	streams.insert(std::make_pair(streamid, Stream(streamid, sampletype, nchannels, std::move(name))));
 	std::lock_guard<std::mutex> lock(write_mut);
 	_write_chunk(chunk_tag_t::streamheader, content, &streamid);
 }

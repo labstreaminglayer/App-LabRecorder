@@ -19,6 +19,14 @@ find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
 find_package(Threads REQUIRED)
 
+add_library(xdf SHARED
+	src/xdfwriter.h
+	src/xdfwriter.cpp
+	src/xdf_defs.h
+	src/xdfreader.h
+	src/xdfreader.cpp
+)
+
 add_executable(${PROJECT_NAME} MACOSX_BUNDLE #WIN32
 	src/main.cpp
 	src/mainwindow.cpp
@@ -27,28 +35,20 @@ add_executable(${PROJECT_NAME} MACOSX_BUNDLE #WIN32
 	src/recording.h
 	src/recording.cpp
 	src/conversions.h
-	src/xdfwriter.h
-	src/xdfwriter.cpp
 )
 
 add_executable(LabRecorderCLI MACOSX_BUNDLE
 	src/clirecorder.cpp
 	src/recording.h
 	src/recording.cpp
-	src/xdfwriter.h
-	src/xdfwriter.cpp
 )
 
 add_executable(test_chunk7
-	test_chunk7.cpp
-	xdfwriter.h
-	xdfwriter.cpp
+	src/test_chunk7.cpp
 )
 
 add_executable(testxdfwriter
 	src/test_xdf_writer.cpp
-	src/xdfwriter.h
-	src/xdfwriter.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -56,13 +56,18 @@ target_link_libraries(${PROJECT_NAME}
 	Qt5::Widgets
 	Threads::Threads
 	LSL::lsl
+	xdf
 )
 
 target_link_libraries(LabRecorderCLI
 	PRIVATE
 	Threads::Threads
 	LSL::lsl
+	xdf
 )
+
+target_link_libraries(test_chunk7 PRIVATE xdf)
+target_link_libraries(testxdfwriter PRIVATE xdf)
 
 # Test for floating point format and endianness
 try_run(IS_LITTLE_ENDIAN IS_IEC559

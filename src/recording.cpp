@@ -182,7 +182,8 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 
 			// retrieve the stream header & get its XML version
 			info = in->info();
-			file_.write_stream_header(streamid, info.as_xml());
+			file_.add_stream(streamid, info.as_xml(), info.channel_count(),
+				static_cast<Stream::Sampletype>(info.channel_format()), info.name());
 			std::cout << "Received header for stream " << src.name() << "." << std::endl;
 
 			leave_headers_phase(phase_locked);

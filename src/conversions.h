@@ -138,4 +138,23 @@ inline const std::string *write_sample_values(
 	return sample;
 }
 
+template<typename T>
+inline const T *write_chunk7_samples(std::ostream &dst, const T *sample, std::size_t len) {
+	return write_sample_values(dst, sample, len);
+}
+
+template <class T>
+inline void write_chunk7_samples(std::ostream &dst, const std::vector<T> &sample) {
+	write_sample_values(dst, sample.data(), sample.size());
+}
+
+template<>
+inline const std::string *write_chunk7_samples(std::ostream &dst, const std::string *sample, std::size_t len) {
+	for (const auto *it = sample, *end = sample + len; it < end; ++it)
+		write_little_endian(dst, static_cast<uint32_t>(it->length()));
+	for (const auto *it = sample, *end = sample + len; it < end; ++it)
+		dst.write(it->data(), it->length());
+	return sample;
+}
+
 #endif
