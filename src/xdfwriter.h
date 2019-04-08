@@ -154,8 +154,8 @@ void XDFWriter::write_data_chunk_nested(streamid_t streamid, const std::vector<d
 }
 
 template <typename T>
-void XDFWriter::write_better_data_chunk(streamid_t streamid, const std::vector<double>& timestamps,
-                                 const T* chunk, uint32_t n_samples, uint32_t n_channels) {
+void XDFWriter::write_better_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
+	const T *chunk, uint32_t n_samples, uint32_t n_channels) {
 	/**
 	  Samples data chunk: [Tag 7] [VLA ChunkLen] [StreamID] [uint32 NumSamples]
 	  [Timestamps, double]
@@ -174,7 +174,4 @@ void XDFWriter::write_better_data_chunk(streamid_t streamid, const std::vector<d
 	write_little_endian(file_, sampletype);
 	write_chunk7_samples(file_, timestamps);
 	write_chunk7_samples(file_, chunk, n_samples * n_channels);
-
 }
-
-
