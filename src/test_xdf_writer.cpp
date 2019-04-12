@@ -6,6 +6,7 @@ int main(int argc, char **argv) {
 	const std::string footer(
 		"<?xml version=\"1.0\"?>"
 		"<info>"
+		"<writer>LabRecorder xdfwriter</writer>"
 		"<first_timestamp>5.1</first_timestamp>"
 		"<last_timestamp>5.9</last_timestamp>"
 		"<sample_count>9</sample_count>"
@@ -21,6 +22,7 @@ int main(int argc, char **argv) {
 		"<nominal_srate>10</nominal_srate>"
 		"<channel_format>int16</channel_format>"
 		"<created_at>50942.723319709003</created_at>"
+		"<desc>Apparently needed</desc>"
 		"</info>",
 		3, Stream::Sampletype::int16_, "SendDataC");
 	w.add_stream(sid,
@@ -32,8 +34,9 @@ int main(int argc, char **argv) {
 		"<nominal_srate>10</nominal_srate>"
 		"<channel_format>string</channel_format>"
 		"<created_at>50942.723319709003</created_at>"
+		"<desc>Apparently needed</desc>"
 		"</info>",
-		1, Stream::Sampletype::string_, "SendDataC");
+		1, Stream::Sampletype::string_, "SendDataString");
 	w.write_boundary_chunk();
 
 	// write a single int16_t sample
@@ -62,4 +65,49 @@ int main(int argc, char **argv) {
 
 	w.write_stream_footer(0, footer);
 	w.write_stream_footer(sid, footer);
+
+	XDFWriter w2("test_v11.xdf");
+	w2.add_stream(0,
+		"<?xml version=\"1.0\"?>"
+		"<info>"
+		"<name>SendDataC</name>"
+		"<type>EEG</type>"
+		"<channel_count>3</channel_count>"
+		"<nominal_srate>10</nominal_srate>"
+		"<channel_format>int16</channel_format>"
+		"<created_at>50942.723319709003</created_at>"
+		"<desc>Apparently needed</desc>"
+		"</info>",
+		3, Stream::Sampletype::int16_, "SendDataC");
+	w2.add_stream(sid,
+		"<?xml version=\"1.0\"?>"
+		"<info>"
+		"<name>SendDataString</name>"
+		"<type>StringMarker</type>"
+		"<channel_count>2</channel_count>"
+		"<nominal_srate>10</nominal_srate>"
+		"<channel_format>string</channel_format>"
+		"<created_at>50942.723319709003</created_at>"
+		"<desc>Apparently needed</desc>"
+		"</info>",
+		2, Stream::Sampletype::string_, "SendDataString");
+	w2.write_boundary_chunk();
+
+	// write a single int16_t sample
+	w2.write_data_chunk(0, {5.1}, std::vector<int16_t>{0xC0, 0xFF, 0xEE}, 3);
+
+	// write a single std::string sample with a length > 127
+	w2.write_data_chunk(sid, {5.1}, std::vector<std::string>{footer, footer}, 2);
+
+	// write multiple samples
+	std::vector<std::string> data_2ch_str{"Hello", "Hallo", "World", "Welt", "from", "von", "LSL", "LSL"};
+	w2.write_better_data_chunk(0, ts, data.data(), 4, 3);
+	w2.write_better_data_chunk(sid, ts, data_2ch_str.data(), 4, 2);
+
+	w2.write_boundary_chunk();
+	w2.write_stream_offset(0, 6, -.1);
+	w2.write_stream_offset(sid, 5, -.2);
+
+	w2.write_stream_footer(0, footer);
+	w2.write_stream_footer(sid, footer);
 }
