@@ -13,10 +13,11 @@ void write_timestamp(std::ostream &out, double ts) {
 	}
 }
 
-XDFWriter::XDFWriter(const std::string &filename)
+XDFWriter::XDFWriter(const std::string &filename, XDFVersion version)
 #ifndef XDFZ_SUPPORT
 	: file_(filename, std::ios::binary | std::ios::trunc)
 #endif
+	, version(version)
 {
 	// open file stream
 #ifdef XDFZ_SUPPORT

@@ -8,8 +8,8 @@
 #include <sstream>
 #include <thread>
 #include <type_traits>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #ifdef XDFZ_SUPPORT
 #include <boost/iostreams/filtering_stream.hpp>
@@ -19,42 +19,62 @@ using outfile_t = boost::iostreams::filtering_ostream;
 using outfile_t = std::ofstream;
 #endif
 
+/**
+ * @brief The XDFVersion enum indicates which XDF features can be used
+ */
+enum class XDFVersion { v10 = 100, v11 = 110 };
+
 class XDFWriter {
 private:
 	outfile_t file_;
 	void _write_chunk_header(
 		chunk_tag_t tag, std::size_t length, const streamid_t *streamid_p = nullptr);
+	std::unordered_map<streamid_t, Stream> streams;
 	std::mutex write_mut;
+	const XDFVersion version;
 
 	// write a generic chunk
 	void _write_chunk(
 		chunk_tag_t tag, const std::string &content, const streamid_t *streamid_p = nullptr);
 
-	std::unordered_map<streamid_t, Stream> streams;
+	const Stream &get_stream(streamid_t streamid) const {
+		auto streamit = streams.find(streamid);
+		if (streamit == streams.end()) throw std::runtime_error("Unknown stream id");
+		return streamit->second;
+	}
 
 public:
 	/**
 	 * @brief XDFWriter Construct a XDFWriter object
 	 * @param filename  Filename to write to
 	 */
-	XDFWriter(const std::string &filename);
+	XDFWriter(const std::string &filename, XDFVersion version = XDFVersion::v10);
 
 	template <typename T>
-	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-		const T *chunk, uint32_t n_samples, uint32_t n_channels);
-	template <typename T>
-	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-		const std::vector<T> &chunk, uint32_t n_channels) {
-		assert(timestamps.size() * n_channels == chunk.size());
-		write_data_chunk(streamid, timestamps, chunk.data(), timestamps.size(), n_channels);
+	void write_data_chunk(
+		streamid_t streamid, const std::vector<double> &timestamps, const std::vector<T> &chunk) {
+		assert(timestamps.size() * get_stream(streamid).nchannels == chunk.size());
+		write_data_chunk(streamid, timestamps, chunk.data());
 	}
+	template <typename T>
+	void write_data_chunk(
+		streamid_t streamid, const std::vector<double> &timestamps, const T *chunk) {
+		if (version == XDFVersion::v10)
+			write_data_chunk_3(streamid, timestamps, chunk);
+		else
+			write_data_chunk_7(streamid, timestamps, chunk);
+	}
+
 	template <typename T>
 	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,
 		const std::vector<std::vector<T>> &chunk);
 
 	template <typename T>
-	void write_better_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-		const T *chunk, uint32_t n_samples);
+	void write_data_chunk_3(
+		streamid_t streamid, const std::vector<double> &timestamps, const T *chunk);
+	template <typename T>
+	void write_data_chunk_7(
+		streamid_t streamid, const std::vector<double> &timestamps, const T *chunk);
 
 	/**
 	 * Write the stream header and add the stream header to the file
@@ -99,16 +119,15 @@ inline void write_ts(std::ostream &out, double ts) {
 }
 
 template <typename T>
-void XDFWriter::write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-	const T *chunk, uint32_t n_samples, uint32_t n_channels) {
+void XDFWriter::write_data_chunk_3(
+	streamid_t streamid, const std::vector<double> &timestamps, const T *chunk) {
 	/**
 	  Samples data chunk: [Tag 3] [VLA ChunkLen] [StreamID] [VLA NumSamples]
 	  [NumSamples x [VLA TimestampLen] [TimeStampLen]
 	  [NumSamples x NumChannels Sample]
 	  */
-	if (n_samples == 0) return;
-	if (timestamps.size() != n_samples)
-		throw std::runtime_error("timestamp / sample count mismatch");
+	auto n_samples = timestamps.size();
+	auto &stream = get_stream(streamid);
 
 	// generate [Samples] chunk contents...
 
@@ -117,7 +136,7 @@ void XDFWriter::write_data_chunk(streamid_t streamid, const std::vector<double> 
 	for (double ts : timestamps) {
 		write_ts(out, ts);
 		// write sample, get the current position in the chunk array back
-		chunk = write_sample_values(out, chunk, n_channels);
+		chunk = write_sample_values(out, chunk, stream.nchannels);
 	}
 	std::string outstr(out.str());
 	// Replace length placeholder
@@ -135,7 +154,7 @@ void XDFWriter::write_data_chunk_nested(streamid_t streamid, const std::vector<d
 	auto n_samples = timestamps.size();
 	if (timestamps.size() != chunk.size())
 		throw std::runtime_error("timestamp / sample count mismatch");
-	auto n_channels = chunk[0].size();
+	auto n_channels = get_stream(streamid).nchannels;
 
 	// generate [Samples] chunk contents...
 
@@ -158,31 +177,23 @@ void XDFWriter::write_data_chunk_nested(streamid_t streamid, const std::vector<d
 }
 
 template <typename T>
-void XDFWriter::write_better_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
-	const T *chunk, uint32_t n_samples) {
+void XDFWriter::write_data_chunk_7(
+	streamid_t streamid, const std::vector<double> &timestamps, const T *chunk) {
 	/**
 	  Samples data chunk: [Tag 7] [VLA ChunkLen] [StreamID] [uint32 NumSamples]
 	  [Timestamps, double]
 	  [NumSamples x NumChannels Sample]
 	  */
-	auto streamit = streams.find(streamid);
-	if(streamit==streams.end()) throw std::runtime_error("...");
-	auto& stream = streamit->second;
-	auto n_channels = stream.nchannels;
-	if (n_samples == 0) return;
-	if (timestamps.size() != n_samples)
-		throw std::runtime_error("timestamp / sample count mismatch");
+	auto n_samples = timestamps.size();
 
-	auto streamit = streams.find(streamid);
-	if(streamit == streams.end())
-		throw std::runtime_error("Unknown stream id");
-	const auto& stream = streamit->second;
+	auto &stream = get_stream(streamid);
 	auto n_channels = stream.nchannels;
 
 	uint8_t sampletype = lsltype<T>::index;
-	if(static_cast<uint8_t>(stream.sampletype) != sampletype)
+	if (static_cast<uint8_t>(stream.sampletype) != sampletype)
 		throw std::runtime_error("Mismatching sample types");
-	auto len = 2 * sizeof(uint32_t) + sizeof(sampletype) + timestamps.size() * sizeof(double) + n_samples * n_channels * sizeof(T);
+	auto len = 2 * sizeof(uint32_t) + sizeof(sampletype) + timestamps.size() * sizeof(double) +
+			   n_samples * n_channels * sizeof(T);
 	std::lock_guard<std::mutex> lock(write_mut);
 	_write_chunk_header(chunk_tag_t::samples_v2, len, &streamid);
 	write_little_endian(file_, n_samples);

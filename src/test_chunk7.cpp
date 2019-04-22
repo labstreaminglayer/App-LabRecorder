@@ -51,13 +51,13 @@ int main(int argc, char **argv) {
 
 	for (uint i = 0; i < blocks; ++i) {
 		for (auto j = 0u; j < n_samples; ++j) timestamps[j] = 17 + (i * n_samples + j) / 1000.;
-		w1.write_data_chunk(sid, timestamps, vals.data(), n_samples, n_channels);
-		w2.write_better_data_chunk(sid, timestamps, vals.data(), n_samples);
+		w1.write_data_chunk(sid, timestamps, vals.data());
+		w2.write_data_chunk_7(sid, timestamps, vals.data());
 	}
 	for (int i = 0; i < strblocks; ++i) {
 		for (auto j = 0u; j < strsamples; ++j) strts[j] = 17 + (i * n_samples + j) / 1000.;
-		w1.write_data_chunk(strsid, strts, strvals.data(), strsamples, 1);
-		w2.write_better_data_chunk(strsid, strts, strvals.data(), strsamples);
+		w1.write_data_chunk(strsid, strts, strvals.data());
+		w2.write_data_chunk_7(strsid, strts, strvals.data());
 	}
 
 	std::ostringstream footer;

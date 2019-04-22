@@ -43,17 +43,17 @@ int main(int argc, char **argv) {
 	w.write_boundary_chunk();
 
 	// write a single int16_t sample
-	w.write_data_chunk(0, {5.1}, std::vector<int16_t>{0xC0, 0xFF, 0xEE}, 3);
+	w.write_data_chunk(0, {5.1}, std::vector<int16_t>{0xC0, 0xFF, 0xEE});
 
 	// write a single std::string sample with a length > 127
-	w.write_data_chunk(sid, {5.1}, std::vector<std::string>{footer}, 1);
+	w.write_data_chunk(sid, {5.1}, std::vector<std::string>{footer});
 
 	// write multiple samples
 	std::vector<double> ts{5.2, 0, 0, 5.5};
 	std::vector<int16_t> data{12, 22, 32, 13, 23, 33, 14, 24, 34, 15, 25, 35};
 	std::vector<std::string> data_str{"Hello", "World", "from", "LSL"};
-	w.write_data_chunk(0, ts, data, 3);
-	w.write_data_chunk(sid, ts, data_str, 1);
+	w.write_data_chunk(0, ts, data);
+	w.write_data_chunk(sid, ts, data_str);
 
 	// write data from nested vectors
 	ts = std::vector<double>{5.6, 0, 0, 0};
@@ -101,15 +101,15 @@ int main(int argc, char **argv) {
 	w2.write_boundary_chunk();
 
 	// write a single int16_t sample
-	w2.write_data_chunk(0, {5.1}, std::vector<int16_t>{0xC0, 0xFF, 0xEE}, 3);
+	w2.write_data_chunk_3(0, {5.1}, std::vector<int16_t>{0xC0, 0xFF, 0xEE}.data());
 
 	// write a single std::string sample with a length > 127
-	w2.write_data_chunk(sid, {5.1}, std::vector<std::string>{footer, footer}, 2);
+	w2.write_data_chunk_3(sid, {5.1}, std::vector<std::string>{footer, footer}.data());
 
 	// write multiple samples
 	std::vector<std::string> data_2ch_str{"Hello", "Hallo", "World", "Welt", "from", "von", "LSL", "LSL"};
-	w2.write_better_data_chunk(0, ts, data.data(), 4);
-	w2.write_better_data_chunk(sid, ts, data_2ch_str.data(), 4);
+	w2.write_data_chunk_7(0, ts, data.data());
+	w2.write_data_chunk_7(sid, ts, data_2ch_str.data());
 
 	w2.write_boundary_chunk();
 	w2.write_stream_offset(0, 6, -.1);

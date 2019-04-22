@@ -25,6 +25,8 @@ template<> struct lsltype<int8_t> {
 	static constexpr int8_t index = 6;
 };
 
+template <> struct lsltype<char> : public lsltype<int8_t> {};
+
 template<> struct lsltype<int16_t> {
 	static constexpr int8_t index = 5;
 };
