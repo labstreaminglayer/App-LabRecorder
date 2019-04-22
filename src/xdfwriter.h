@@ -11,18 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef XDFZ_SUPPORT
-#include <boost/iostreams/filtering_stream.hpp>
-using outfile_t = boost::iostreams::filtering_ostream;
-#else
-#include <fstream>
-using outfile_t = std::ofstream;
-#endif
 
-/**
- * @brief The XDFVersion enum indicates which XDF features can be used
- */
-enum class XDFVersion { v10 = 100, v11 = 110 };
 
 class XDFWriter {
 private:

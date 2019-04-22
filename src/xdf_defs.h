@@ -17,6 +17,11 @@ enum class chunk_tag_t : uint16_t {
 	undefined = 0
 };
 
+/**
+ * @brief The XDFVersion enum indicates which XDF features can be used
+ */
+enum class XDFVersion { v10 = 100, v11 = 110 };
+
 template<typename T>
 struct lsltype {
 };
@@ -64,3 +69,13 @@ struct Stream {
 	Stream(streamid_t streamid, Sampletype sampletype, uint32_t nchannels, std::string name):
 		streamid(streamid), sampletype(sampletype), nchannels(nchannels), name(std::move(name)) {}
 };
+
+#ifdef XDFZ_SUPPORT
+#include <boost/iostreams/filtering_stream.hpp>
+using outfile_t = boost::iostreams::filtering_ostream;
+using infile_t = boost::iostreams::filtering_istream;
+#else
+#include <fstream>
+using outfile_t = std::ofstream;
+using infile_t = std::ifstream;
+#endif
