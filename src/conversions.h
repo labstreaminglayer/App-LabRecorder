@@ -5,6 +5,7 @@
 #ifndef CONVERSIONS_H_
 #define CONVERSIONS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <ostream>
@@ -150,8 +151,38 @@ inline void write_chunk7_samples(std::ostream &dst, const std::vector<T> &sample
 
 template<>
 inline const std::string *write_chunk7_samples(std::ostream &dst, const std::string *sample, std::size_t len) {
-	for (const auto *it = sample, *end = sample + len; it < end; ++it)
-		write_little_endian(dst, static_cast<uint32_t>(it->length()));
+	if(len == 0) return sample;
+
+	std::vector<uint64_t> strlens;
+	strlens.reserve(len);
+	std::transform(sample, sample+len, std::back_inserter(strlens), [](const std::string& s){return s.length();});
+
+	auto minmax = std::minmax_element(strlens.begin(), strlens.end());
+	auto minlen = *minmax.first, maxlen = *minmax.second;
+
+	if(minlen == maxlen) {
+		write_little_endian<int8_t>(dst, true);
+		strlens.clear();
+		strlens.push_back(maxlen);
+	} else write_little_endian<int8_t>(dst, false);
+
+	uint8_t lenbytes = 1;
+	if(maxlen >= 1L<<32) lenbytes = 8;
+	else if(maxlen >= 1<<16) lenbytes = 4;
+	else if(maxlen >= 1<<8) lenbytes = 2;
+
+	write_little_endian(dst, lenbytes);
+	switch (lenbytes) {
+	case 1:
+		for (auto strlen : strlens) write_little_endian(dst, static_cast<uint8_t>(strlen));
+	case 2:
+		for (auto strlen : strlens) write_little_endian(dst, static_cast<uint16_t>(strlen));
+	case 4:
+		for (auto strlen : strlens) write_little_endian(dst, static_cast<uint32_t>(strlen));
+	case 8:
+		for (auto strlen : strlens) write_little_endian(dst, static_cast<uint64_t>(strlen));
+	}
+
 	for (const auto *it = sample, *end = sample + len; it < end; ++it)
 		dst.write(it->data(), it->length());
 	return sample;
