@@ -227,7 +227,7 @@ void MainWindow::load_config(QString filename) {
 
 void MainWindow::save_config(QString filename) {
 	QSettings settings(filename, QSettings::Format::IniFormat);
-	settings.setValue("StudyRoot", QDir::cleanPath(ui->lineEdit_template->text()));
+	settings.setValue("StudyRoot", QDir::cleanPath(ui->rootEdit->text()));
 	if (!ui->check_bids->isChecked())
 		settings.setValue("PathTemplate", QDir::cleanPath(ui->lineEdit_template->text()));
 	qInfo() << requiredStreams;
