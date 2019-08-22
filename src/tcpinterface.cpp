@@ -7,10 +7,10 @@ RemoteControlSocket::RemoteControlSocket(uint16_t port) : server() {
 }
 
 void RemoteControlSocket::addClient() {
-	auto* client = server.nextPendingConnection();
+	auto *client = server.nextPendingConnection();
 	clients.push_back(client);
 	connect(client, &QTcpSocket::readyRead, [this, client]() {
-		if(!client->canReadLine()) return;
+		if (!client->canReadLine()) return;
 		QString line(client->readLine());
 		qInfo() << line;
 		line = line.trimmed();
@@ -18,17 +18,17 @@ void RemoteControlSocket::addClient() {
 	});
 }
 
-void RemoteControlSocket::handleLine(QString s, QTcpSocket* sock) {
+void RemoteControlSocket::handleLine(QString s, QTcpSocket *sock) {
 	qInfo() << s;
 	if (s == "start")
 		emit start();
 	else if (s == "stop")
 		emit stop();
 	sock->write("OK");
-	//TODO: set filename
-	//TODO: select /deselect streams
-	//TODO: send acknowledgement
-	//TODO: get current state
+	// TODO: set filename
+	// TODO: select /deselect streams
+	// TODO: send acknowledgement
+	// TODO: get current state
 	//
 	// else this->sender()->sender("Whoops");
 }

@@ -75,6 +75,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 			ui->label_counter->setText("Exp num (%n)");
 		}
 	});
+	connect(ui->rcsbutton, &QPushButton::clicked, this, &MainWindow::toggleRcs);
 
 	QString cfgfilepath = find_config_file(config_file);
 	load_config(cfgfilepath);
@@ -82,7 +83,6 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	timer = std::make_unique<QTimer>(this);
 	connect(&*timer, &QTimer::timeout, this, &MainWindow::statusUpdate);
 	timer->start(1000);
-	// startTime = (int)lsl::local_clock();
 }
 
 void MainWindow::statusUpdate() const {
@@ -501,13 +501,15 @@ void MainWindow::printReplacedFilename() {
 	ui->locationLabel->setText(
 		ui->rootEdit->text() + '\n' + replaceFilename(ui->lineEdit_template->text()));
 }
+
 MainWindow::~MainWindow() noexcept = default;
 
 void MainWindow::toggleRcs() {
 	if (rcs) {
 		rcs = nullptr;
 		ui->rcsbutton->setText("Start RCS");
-	} else {
+	}
+	else {
 		uint16_t port = ui->rcsport->value();
 		rcs = std::make_unique<RemoteControlSocket>(port);
 		ui->rcsbutton->setText("Stop RCS");

@@ -116,7 +116,8 @@ recording::~recording() {
 	}
 }
 
-void recording::requestStop() noexcept {
+void recording::requestStop() noexcept
+{
 	shutdown_ = true;
 }
 
