@@ -50,9 +50,8 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 
 	// Signals for builder-related edits -> buildFilename
 	connect(ui->rootBrowseButton, &QPushButton::clicked, [this]() {
-		this->ui->rootEdit->setText(
-			QDir::toNativeSeparators(
-				QFileDialog::getExistingDirectory(this, "Study root folder...")));
+		this->ui->rootEdit->setText(QDir::toNativeSeparators(
+			QFileDialog::getExistingDirectory(this, "Study root folder...")));
 		this->buildFilename();
 	});
 	connect(ui->rootEdit, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
@@ -66,9 +65,8 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		box.setReadOnly(checked);
 		if (checked) {
 			legacyTemplate = box.text();
-			box.setText(
-				QDir::toNativeSeparators(
-					QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf")));
+			box.setText(QDir::toNativeSeparators(
+				QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf")));
 			ui->label_counter->setText("Run (%r)");
 		} else {
 			box.setText(QDir::toNativeSeparators(legacyTemplate));
@@ -93,9 +91,9 @@ void MainWindow::statusUpdate() const {
 		fileinfo.refresh();
 		auto size = fileinfo.size();
 		QString timeString = QStringLiteral("Recording to %1 (%2; %3kb)")
-				.arg(QDir::toNativeSeparators(recFilename),
-					QDateTime::fromTime_t(elapsed).toUTC().toString("hh:mm:ss"),
-					QString::number(size / 1000));
+								 .arg(QDir::toNativeSeparators(recFilename),
+									 QDateTime::fromTime_t(elapsed).toUTC().toString("hh:mm:ss"),
+									 QString::number(size / 1000));
 		statusBar()->showMessage(timeString);
 	}
 }
@@ -117,8 +115,6 @@ void MainWindow::blockSelected(const QString &block) {
 void MainWindow::load_config(QString filename) {
 	qInfo() << "loading config file " << QDir::toNativeSeparators(filename);
 	try {
-		// if (!QFileInfo::exists(filename)) throw std::runtime_error("Settings file doesn't
-		// exist.");
 		QSettings pt(QDir::cleanPath(filename), QSettings::Format::IniFormat);
 
 		// ----------------------------
@@ -209,7 +205,8 @@ void MainWindow::load_config(QString filename) {
 
 		// Check the wild-card-replaced filename to see if it exists already.
 		// If it does then increment the exp number.
-		// We only do this on settings-load because manual spin changes might indicate purposeful overwriting.
+		// We only do this on settings-load because manual spin changes might indicate purposeful
+		// overwriting.
 		QString recFilename = QDir::cleanPath(ui->lineEdit_template->text());
 		// Spin Number
 		if (recFilename.contains(counterPlaceholder())) {
@@ -218,6 +215,38 @@ void MainWindow::load_config(QString filename) {
 				if (!QFileInfo::exists(replaceFilename(recFilename))) break;
 			}
 		}
+
+		// Added by @Doug1983 to increase config file functionality:
+		// 1 - Set the RemoteControlSocket value On/Off
+		// 2 - Set the port value for the socket
+		QStringList rcsOpts;
+		bool toggOnOnff = false;
+		if (pt.contains("RCSOptions")) { rcsOpts = pt.value("RCSOptions").toStringList(); }
+		for (QString &opt : rcsOpts) {
+			QStringList words = opt.split(' ', QString::SkipEmptyParts);
+			// The first word is the option name: (RCS), (Port), (Rec)
+			// second word is the value.
+			if (!words.isEmpty()) {
+				QString optName = words.constFirst();
+				QString optValue = words.constLast();
+
+				// Check port number. 
+				if (optName == "(Port)") ui->rcsport->setValue(optValue.toInt());
+
+				// Since we need the port number to be set beforehand, 
+				// we'll wait to start the RCS  until all options have been parsed
+				// we'll then toggleRcs() if not already running.
+				if (optName == "(RCS)") 
+				{
+					toggOnOnff = ((optValue.toLower() == "true" || optValue == "1" ||
+										   optValue.toLower() == "on") &&
+									   rcs == NULL);
+				}
+			}
+		}
+		// now activate RCS 
+		if (toggOnOnff) toggleRcs();
+		// end added @Doug1983
 
 	} catch (std::exception &e) { qWarning() << "Problem parsing config file: " << e.what(); }
 	// std::cout << "refreshing streams ..." <<std::endl;
@@ -317,8 +346,8 @@ void MainWindow::startRecording() {
 					this, "Error", "Recording path already exists and is a directory");
 				return;
 			}
-			QString rename_to = recFileInfo.absolutePath() + '/' +
-								recFileInfo.baseName() + "_old%1." + recFileInfo.suffix();
+			QString rename_to = recFileInfo.absolutePath() + '/' + recFileInfo.baseName() +
+								"_old%1." + recFileInfo.suffix();
 			// search for highest _oldN
 			int i = 1;
 			while (QFileInfo::exists(rename_to.arg(i))) i++;
@@ -492,10 +521,7 @@ QString MainWindow::find_config_file(const char *filename) {
 	return "";
 }
 
-QString MainWindow::counterPlaceholder() const
-{
-	return ui->check_bids->isChecked() ? "%r" : "%n";
-}
+QString MainWindow::counterPlaceholder() const { return ui->check_bids->isChecked() ? "%r" : "%n"; }
 
 void MainWindow::printReplacedFilename() {
 	ui->locationLabel->setText(
@@ -508,8 +534,7 @@ void MainWindow::toggleRcs() {
 	if (rcs) {
 		rcs = nullptr;
 		ui->rcsbutton->setText("Start RCS");
-	}
-	else {
+	} else {
 		uint16_t port = ui->rcsport->value();
 		rcs = std::make_unique<RemoteControlSocket>(port);
 		ui->rcsbutton->setText("Stop RCS");
