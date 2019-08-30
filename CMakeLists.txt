@@ -9,9 +9,6 @@ include(Findliblsl.cmake)
 option(LABRECORDER_XDFZ "use Boost.Iostreams for XDFZ support" Off)
 option(LABRECORDER_BOOST_TYPE_CONVERSIONS "Use boost for type conversions" Off)
 
-# GENERAL CONFIG #
-set(META_PROJECT_DESCRIPTION "Record LabStreamingLayer streams to XDF data file.")
-
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 

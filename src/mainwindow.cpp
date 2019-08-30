@@ -16,17 +16,16 @@
 
 MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	: QMainWindow(parent), ui(new Ui::MainWindow) {
-
 	ui->setupUi(this);
-	connect(ui->actionQuit, &QAction::triggered, this, &MainWindow::close);
-	connect(ui->actionLoadConfig, &QAction::triggered, [this]() {
-		this->load_config(QFileDialog::getOpenFileName(
+	connect(ui->actionLoad_Configuration, &QAction::triggered, [this]() {
+		load_config(QFileDialog::getOpenFileName(
 			this, "Load Configuration File", "", "Configuration Files (*.cfg)"));
 	});
-	connect(ui->actionSaveConfig, &QAction::triggered, [this]() {
-		this->save_config(QFileDialog::getSaveFileName(
+	connect(ui->actionSave_Configuration, &QAction::triggered, [this]() {
+		save_config(QFileDialog::getSaveFileName(
 			this, "Save Configuration File", "", "Configuration Files (*.cfg)"));
 	});
+	connect(ui->actionQuit, &QAction::triggered, this, &MainWindow::close);
 
 	// Signals for stream finding/selecting/starting/stopping
 	connect(ui->refreshButton, &QPushButton::clicked, this, &MainWindow::refreshStreams);
@@ -38,7 +37,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		QString infostr = QStringLiteral("LSL library version: ") +
 						  QString::number(lsl::library_version()) +
 						  "\nLSL library info:" + lsl::lsl_library_info();
-		QMessageBox::about(this, "About LabRecorder", infostr);
+		QMessageBox::about(this, "About this app", infostr);
 	});
 
 	// Wheenver lineEdit_template is changed, print the final result.
@@ -83,8 +82,6 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	timer->start(1000);
 	// startTime = (int)lsl::local_clock();
 }
-
-MainWindow::~MainWindow() noexcept = default;
 
 void MainWindow::statusUpdate() const {
 	if (currentRecording) {
@@ -502,3 +499,4 @@ void MainWindow::printReplacedFilename() {
 	ui->locationLabel->setText(
 		ui->rootEdit->text() + '\n' + replaceFilename(ui->lineEdit_template->text()));
 }
+MainWindow::~MainWindow() noexcept = default;

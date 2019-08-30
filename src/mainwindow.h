@@ -1,19 +1,19 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
-
-// Qt
-#include "ui_mainwindow.h"
-
 #include <QComboBox>
 #include <QCloseEvent>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QStringList>
 #include <QTimer>
-#include <memory>
+#include <memory> //for std::unique_ptr
 
 // LSL
 #include <lsl_cpp.h>
+
+namespace Ui {
+class MainWindow;
+}
 
 class recording;
 

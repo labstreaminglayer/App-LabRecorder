@@ -4,7 +4,6 @@
 # installed / an install dir was unzipped or set LIBLSLDIR to the path where
 # the liblsl source code and CMakeLists.txt is
 # Then, include Findliblsl.cmake
-
 # Findliblsl.cmake will the look for ${LSL_INSTALL_ROOT}/share/LSL/cmake/LSLConfig.cmake
 # or ${LIBLSLDIR}/LSLCMake.cmake and ${LIBLSLDIR}/CMakeLists.txt and either import
 # the "installed" precompiled liblsl or add the source directory and compile it
