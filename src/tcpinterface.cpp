@@ -24,8 +24,10 @@ void RemoteControlSocket::handleLine(QString s, QTcpSocket *sock) {
 		emit start();
 	else if (s == "stop")
 		emit stop();
+	else if (s.contains("filename")) {
+		emit filename(s);
+	}
 	sock->write("OK");
-	// TODO: set filename
 	// TODO: select /deselect streams
 	// TODO: send acknowledgement
 	// TODO: get current state

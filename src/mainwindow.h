@@ -46,6 +46,8 @@ private slots:
 	void buildBidsTemplate();
 	void printReplacedFilename();
 	void toggleRcs();
+	void rcsUpdateFilename(QString s);
+	void rcsStartRecording();
 
 private:
 	QSet<QString> getCheckedStreams() const;
@@ -69,6 +71,10 @@ private:
 	//QString recFilename;
 	QString legacyTemplate;
 	std::unique_ptr<Ui::MainWindow> ui; // window pointer
+
+	// suppress pop-ups when starting recording and missing or no checked 
+	// streams
+	bool hideWarnings = false; 
 };
 
 #endif // MAINWINDOW_H

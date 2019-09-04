@@ -60,13 +60,15 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->lineEdit_session, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
 	connect(ui->lineEdit_acq, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
 	connect(ui->input_blocktask, &QComboBox::currentTextChanged, this, &MainWindow::buildFilename);
+	connect(ui->input_modality, &QComboBox::currentTextChanged, this, &MainWindow::buildFilename);
 	connect(ui->check_bids, &QCheckBox::toggled, [this](bool checked) {
 		auto &box = *ui->lineEdit_template;
 		box.setReadOnly(checked);
 		if (checked) {
 			legacyTemplate = box.text();
 			box.setText(QDir::toNativeSeparators(
-				QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf")));
+				QStringLiteral("sub-%p/ses-%s/%m/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_%m.xdf")));
+				//QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf")));
 			ui->label_counter->setText("Run (%r)");
 		} else {
 			box.setText(QDir::toNativeSeparators(legacyTemplate));
@@ -203,20 +205,16 @@ void MainWindow::load_config(QString filename) {
 
 		buildFilename();
 
-		// Check the wild-card-replaced filename to see if it exists already.
-		// If it does then increment the exp number.
-		// We only do this on settings-load because manual spin changes might indicate purposeful
-		// overwriting.
-		QString recFilename = QDir::cleanPath(ui->lineEdit_template->text());
-		// Spin Number
-		if (recFilename.contains(counterPlaceholder())) {
-			for (int i = 1; i < 1001; i++) {
-				ui->spin_counter->setValue(i);
-				if (!QFileInfo::exists(replaceFilename(recFilename))) break;
-			}
-		}
-
 		// Added by @Doug1983 to increase config file functionality:
+		// Append BIDS modalities to the default list. Need to be called after buildFilename
+		// since the default values are added there.
+		QStringList bidsModalities;
+		if (pt.contains("BidsModalities")) {
+			bidsModalities = pt.value("BidsModalities").toStringList();
+		}
+		ui->input_modality->insertItems(ui->input_modality->count(), bidsModalities);
+
+		// RCS options
 		// 1 - Set the RemoteControlSocket value On/Off
 		// 2 - Set the port value for the socket
 		QStringList rcsOpts;
@@ -230,23 +228,35 @@ void MainWindow::load_config(QString filename) {
 				QString optName = words.constFirst();
 				QString optValue = words.constLast();
 
-				// Check port number. 
-				if (optName == "(Port)") ui->rcsport->setValue(optValue.toInt());
+				// Check port number.
+				if (optName == "Port") ui->rcsport->setValue(optValue.toInt());
 
-				// Since we need the port number to be set beforehand, 
+				// Since we need the port number to be set beforehand,
 				// we'll wait to start the RCS  until all options have been parsed
 				// we'll then toggleRcs() if not already running.
-				if (optName == "(RCS)") 
-				{
+				if (optName == "RCS") {
 					toggOnOnff = ((optValue.toLower() == "true" || optValue == "1" ||
-										   optValue.toLower() == "on") &&
-									   rcs == NULL);
+									  optValue.toLower() == "on") &&
+								  rcs == NULL);
 				}
 			}
 		}
-		// now activate RCS 
+		// now activate RCS
 		if (toggOnOnff) toggleRcs();
 		// end added @Doug1983
+
+		// Check the wild-card-replaced filename to see if it exists already.
+		// If it does then increment the exp number.
+		// We only do this on settings-load because manual spin changes might indicate purposeful
+		// overwriting.
+		QString recFilename = QDir::cleanPath(ui->lineEdit_template->text());
+		// Spin Number
+		if (recFilename.contains(counterPlaceholder())) {
+			for (int i = 1; i < 1001; i++) {
+				ui->spin_counter->setValue(i);
+				if (!QFileInfo::exists(replaceFilename(recFilename))) break;
+			}
+		}
 
 	} catch (std::exception &e) { qWarning() << "Problem parsing config file: " << e.what(); }
 	// std::cout << "refreshing streams ..." <<std::endl;
@@ -304,34 +314,36 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 }
 
 void MainWindow::startRecording() {
-
 	if (!currentRecording) {
 
 		// automatically refresh streams
 		const std::vector<lsl::stream_info> resolvedStreams = refreshStreams();
 		const QSet<QString> checked = getCheckedStreams();
 
-		// if a checked stream is now missing
-		// change to "checked.intersects(missingStreams) as soon as Ubuntu 16.04/Qt 5.5 is EOL
-		QSet<QString> missing = checked;
-		if (!missing.intersect(missingStreams).isEmpty()) {
-			// are you sure?
-			QMessageBox msgBox(QMessageBox::Warning, "Stream not found",
-				"At least one of the streams that you checked seems to be offline",
-				QMessageBox::Yes | QMessageBox::No, this);
-			msgBox.setInformativeText("Do you want to start recording anyway?");
-			msgBox.setDefaultButton(QMessageBox::No);
-			if (msgBox.exec() != QMessageBox::Yes) return;
+		if (!hideWarnings) {
+			// if a checked stream is now missing
+			// change to "checked.intersects(missingStreams) as soon as Ubuntu 16.04/Qt 5.5 is EOL
+			QSet<QString> missing = checked;
+			if (!missing.intersect(missingStreams).isEmpty()) {
+				// are you sure?
+				QMessageBox msgBox(QMessageBox::Warning, "Stream not found",
+					"At least one of the streams that you checked seems to be offline",
+					QMessageBox::Yes | QMessageBox::No, this);
+				msgBox.setInformativeText("Do you want to start recording anyway?");
+				msgBox.setDefaultButton(QMessageBox::No);
+				if (msgBox.exec() != QMessageBox::Yes) return;
+			}
+
+			if (checked.isEmpty()) {
+				QMessageBox msgBox(QMessageBox::Warning, "No streams selected",
+					"You have selected no streams", QMessageBox::Yes | QMessageBox::No, this);
+				msgBox.setInformativeText("Do you want to start recording anyway?");
+				msgBox.setDefaultButton(QMessageBox::No);
+				if (msgBox.exec() != QMessageBox::Yes) return;
+			}
 		}
 
-		if (checked.isEmpty()) {
-			QMessageBox msgBox(QMessageBox::Warning, "No streams selected",
-				"You have selected no streams", QMessageBox::Yes | QMessageBox::No, this);
-			msgBox.setInformativeText("Do you want to start recording anyway?");
-			msgBox.setDefaultButton(QMessageBox::No);
-			if (msgBox.exec() != QMessageBox::Yes) return;
-		}
-
+		// don't hide critical errors.
 		QString recFilename = replaceFilename(QDir::cleanPath(ui->lineEdit_template->text()));
 		if (recFilename.isEmpty()) {
 			QMessageBox::critical(this, "Filename empty", "Can not record without a file name");
@@ -430,14 +442,21 @@ void MainWindow::buildBidsTemplate() {
 	if (ui->input_blocktask->currentText().isEmpty()) {
 		ui->input_blocktask->setCurrentText("Default");
 	}
+	// Added by @Doug1983 to implement the BIDS modality selection
+	if (ui->input_modality->currentText().isEmpty()) {
+		ui->input_modality->insertItems(0, {"eeg", "ieeg", "meg", "beh"});
+		ui->input_modality->setCurrentIndex(0);
+	}
 
 	// Folder hierarchy
-	QStringList fileparts{"sub-%p", "ses-%s", "eeg"};
+	//QStringList fileparts{"sub-%p", "ses-%s", "eeg"};
+	QStringList fileparts{"sub-%p", "ses-%s", "%m"};
 
 	// filename
 	QString fname = "sub-%p_ses-%s_task-%b";
 	if (!ui->lineEdit_acq->text().isEmpty()) { fname.append("_acq-%a"); }
-	fname.append("_run-%r_eeg.xdf");
+	fname.append("_run-%r_%m.xdf");
+	//fname.append("_run-%r_eeg.xdf");
 	fileparts << fname;
 	ui->lineEdit_template->setText(QDir::toNativeSeparators(fileparts.join('/')));
 }
@@ -478,6 +497,7 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 	fullfile.replace("%p", ui->lineEdit_participant->text());
 	fullfile.replace("%s", ui->lineEdit_session->text());
 	fullfile.replace("%a", ui->lineEdit_acq->text());
+	fullfile.replace("%m", ui->input_modality->currentText());
 
 	// Replace either %r or %n with the counter
 	QString run = QString("%1").arg(ui->spin_counter->value(), 3, 10, QChar('0'));
@@ -539,7 +559,65 @@ void MainWindow::toggleRcs() {
 		rcs = std::make_unique<RemoteControlSocket>(port);
 		ui->rcsbutton->setText("Stop RCS");
 
-		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::startRecording);
+		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::rcsStartRecording);
 		connect(rcs.get(), &RemoteControlSocket::stop, this, &MainWindow::stopRecording);
+		connect(rcs.get(), &RemoteControlSocket::filename, this, &MainWindow::rcsUpdateFilename);
 	}
+}
+
+void MainWindow::rcsStartRecording() {
+	// since we want to avoid a pop-up window when streams are missing or unchecked,
+	// we'll check all the streams and start recording
+	hideWarnings = true;
+	selectAllStreams();
+	startRecording();
+}
+
+
+void MainWindow::rcsUpdateFilename(QString s) {
+	//
+	// format: "filename {option:value}{option:value}
+	// Options are:
+	//	root: full path to Study root;
+	//  template: legacy filename template, left to default (bids) if unspecified;
+	//	task; run; participant; session; acquisition: base options
+	//	(BIDS) modality: from either the defaults eeg, ieeg, meg, beh or adding a new
+	//		potentially unsupported value.
+	QRegularExpression re("{(?P<option>[a-zA-Z]+):(?P<value>[a-zA-z0-9:\\\/]+)}");
+	re.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
+	QRegularExpressionMatchIterator i = re.globalMatch(s);
+	while (i.hasNext()) {
+		QRegularExpressionMatch match = i.next();
+		QString option = match.captured("option");
+		QString value = match.captured("value");
+		// TODO: replace with QStringList and switch
+		if (option.toLower() == "root") {
+			ui->rootEdit->setText(QDir::toNativeSeparators(value));
+		} else if(option.toLower() == "template"){
+				// legacy
+				ui->check_bids->setChecked(false);
+				ui->lineEdit_template->setText(value.toLower());
+		} else if (option.toLower() == "task") {
+			ui->input_blocktask->clear();
+			ui->input_blocktask->addItem(value);
+			ui->input_blocktask->setCurrentIndex(0);
+		} else if (option.toLower() == "run") {
+			ui->spin_counter->setValue(value.toInt());
+		} else if (option.toLower() == "participant") {
+			ui->lineEdit_participant->setText(value);
+		} else if (option.toLower() == "session") {
+			ui->lineEdit_session->setText(value);
+		} else if (option.toLower() == "acquisition") {
+			ui->lineEdit_acq->setText(value);
+		} else if (option.toLower() == "modality") {
+			if (ui->input_modality->findText(value.toLower()) != -1)
+				ui->input_modality->setCurrentIndex(ui->input_modality->findText(value.toLower()));
+			else {
+				ui->input_modality->insertItem(ui->input_modality->count(), value.toLower());
+				ui->input_modality->setCurrentIndex(ui->input_modality->count() - 1);
+			}
+		}
+	}
+	// to make sure all the values are updated.
+	buildFilename();
 }

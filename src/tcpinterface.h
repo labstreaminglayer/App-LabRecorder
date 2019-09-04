@@ -5,6 +5,7 @@
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
 #include <QDataStream>
+#include <qregularexpression.h>
 
 class RemoteControlSocket : public QObject {
 	Q_OBJECT
@@ -16,6 +17,7 @@ public:
 signals:
 	void start();
 	void stop();
+	void filename(QString s);
 
 public slots:
 	void addClient();
