@@ -3,7 +3,7 @@ pull_requests:
   do_not_increment_build_number: true
 shallow_clone: true
 environment:
-  lsltag: 1.13.0-b12
+  lsltag: 1.13.0-b13
   lslversion: 1.13.0
   LSLDIST_URL: "https://github.com/sccn/liblsl/releases/download"
   CMakeArgs: ""
