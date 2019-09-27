@@ -442,14 +442,14 @@ void MainWindow::buildBidsTemplate() {
 	if (ui->input_blocktask->currentText().isEmpty()) {
 		ui->input_blocktask->setCurrentText("Default");
 	}
-	// Added by @Doug1983 to implement the BIDS modality selection
+	// Added by @Doug1983 to implement the BIDS modality selection, instead of the
+	// single eeg option.
 	if (ui->input_modality->currentText().isEmpty()) {
 		ui->input_modality->insertItems(0, {"eeg", "ieeg", "meg", "beh"});
 		ui->input_modality->setCurrentIndex(0);
 	}
 
 	// Folder hierarchy
-	//QStringList fileparts{"sub-%p", "ses-%s", "eeg"};
 	QStringList fileparts{"sub-%p", "ses-%s", "%m"};
 
 	// filename

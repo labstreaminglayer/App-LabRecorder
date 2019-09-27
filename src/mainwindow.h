@@ -72,8 +72,8 @@ private:
 	QString legacyTemplate;
 	std::unique_ptr<Ui::MainWindow> ui; // window pointer
 
-	// suppress pop-ups when starting recording and missing or no checked 
-	// streams
+	// @Doug1983 added to suppress pop-ups when remotely starting recording 
+	// and missing streams or having some unchecked streams 
 	bool hideWarnings = false; 
 };
 
