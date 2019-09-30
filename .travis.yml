@@ -1,13 +1,11 @@
 language: cpp
 compiler: clang
 env:
-  LSL_VERSION="1.13.0-b3"
+  LSL_VERSION="1.13.0-b13"
 matrix:
   include:
   - os: osx
     osx_image: xcode10.1
-  - os: osx
-    osx_image: xcode9.2
 before_install:
 - mkdir LSL
 - brew update
