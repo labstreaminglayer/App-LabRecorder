@@ -68,7 +68,6 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 			legacyTemplate = box.text();
 			box.setText(QDir::toNativeSeparators(
 				QStringLiteral("sub-%p/ses-%s/%m/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_%m.xdf")));
-				//QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf")));
 			ui->label_counter->setText("Run (%r)");
 		} else {
 			box.setText(QDir::toNativeSeparators(legacyTemplate));
@@ -205,7 +204,6 @@ void MainWindow::load_config(QString filename) {
 
 		buildFilename();
 
-		// Added by @Doug1983 to increase config file functionality:
 		// Append BIDS modalities to the default list. Need to be called after buildFilename
 		// since the default values are added there.
 		QStringList bidsModalities;
@@ -243,7 +241,6 @@ void MainWindow::load_config(QString filename) {
 		}
 		// now activate RCS
 		if (toggOnOnff) toggleRcs();
-		// end added @Doug1983
 
 		// Check the wild-card-replaced filename to see if it exists already.
 		// If it does then increment the exp number.
@@ -442,8 +439,7 @@ void MainWindow::buildBidsTemplate() {
 	if (ui->input_blocktask->currentText().isEmpty()) {
 		ui->input_blocktask->setCurrentText("Default");
 	}
-	// Added by @Doug1983 to implement the BIDS modality selection, instead of the
-	// single eeg option.
+	// BIDS modality selection
 	if (ui->input_modality->currentText().isEmpty()) {
 		ui->input_modality->insertItems(0, {"eeg", "ieeg", "meg", "beh"});
 		ui->input_modality->setCurrentIndex(0);
@@ -456,7 +452,6 @@ void MainWindow::buildBidsTemplate() {
 	QString fname = "sub-%p_ses-%s_task-%b";
 	if (!ui->lineEdit_acq->text().isEmpty()) { fname.append("_acq-%a"); }
 	fname.append("_run-%r_%m.xdf");
-	//fname.append("_run-%r_eeg.xdf");
 	fileparts << fname;
 	ui->lineEdit_template->setText(QDir::toNativeSeparators(fileparts.join('/')));
 }
