@@ -15,6 +15,8 @@
 #include "recording.h"
 #include "tcpinterface.h"
 
+const QStringList bids_modalities_default = QStringList({"eeg", "ieeg", "meg", "beh"});
+
 MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	: QMainWindow(parent), ui(new Ui::MainWindow) {
 	ui->setupUi(this);
@@ -204,15 +206,12 @@ void MainWindow::load_config(QString filename) {
 			ui->lineEdit_template->setText(QDir::toNativeSeparators(legacyTemplate));
 		}
 
-		buildFilename();
+		// Append BIDS modalities to the default list.
+		ui->input_modality->insertItems(
+			ui->input_modality->count(), pt.value("BidsModalities", bids_modalities_default).toStringList());
+		ui->input_modality->setCurrentIndex(0);
 
-		// Append BIDS modalities to the default list. Need to be called after buildFilename
-		// since the default values are added there.
-		QStringList bidsModalities;
-		if (pt.contains("BidsModalities")) {
-			bidsModalities = pt.value("BidsModalities").toStringList();
-		}
-		ui->input_modality->insertItems(ui->input_modality->count(), bidsModalities);
+        buildFilename();
 
 		// Remote Control Socket options
 		if (pt.contains("RCSPort")) {
@@ -426,7 +425,7 @@ void MainWindow::buildBidsTemplate() {
 	}
 	// BIDS modality selection
 	if (ui->input_modality->currentText().isEmpty()) {
-		ui->input_modality->insertItems(0, {"eeg", "ieeg", "meg", "beh"});
+		ui->input_modality->insertItems(0, bids_modalities_default);
 		ui->input_modality->setCurrentIndex(0);
 	}
 
