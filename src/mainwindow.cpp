@@ -40,7 +40,10 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 						  "\nLSL library info:" + lsl::lsl_library_info();
 		QMessageBox::about(this, "About this app", infostr);
 	});
-	connect(ui->rcsbutton, &QPushButton::clicked, this, &MainWindow::toggleRcs);
+
+    // Signals for Remote Control Socket
+	connect(ui->rcsCheckBox, &QCheckBox::toggled, this, &MainWindow::rcsCheckBoxChanged);
+	connect(ui->rcsport, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::rcsportValueChangedInt);
 
 	// Wheenver lineEdit_template is changed, print the final result.
 	connect(
@@ -74,7 +77,6 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 			ui->label_counter->setText("Exp num (%n)");
 		}
 	});
-	connect(ui->rcsbutton, &QPushButton::clicked, this, &MainWindow::toggleRcs);
 
 	QString cfgfilepath = find_config_file(config_file);
 	load_config(cfgfilepath);
@@ -212,35 +214,18 @@ void MainWindow::load_config(QString filename) {
 		}
 		ui->input_modality->insertItems(ui->input_modality->count(), bidsModalities);
 
-		// RCS options
-		// 1 - Set the RemoteControlSocket value On/Off
-		// 2 - Set the port value for the socket
-		QStringList rcsOpts;
-		bool toggOnOnff = false;
-		if (pt.contains("RCSOptions")) { rcsOpts = pt.value("RCSOptions").toStringList(); }
-		for (QString &opt : rcsOpts) {
-			QStringList words = opt.split(' ', QString::SkipEmptyParts);
-			// The first word is the option name: (RCS), (Port), (Rec)
-			// second word is the value.
-			if (!words.isEmpty()) {
-				QString optName = words.constFirst();
-				QString optValue = words.constLast();
-
-				// Check port number.
-				if (optName == "Port") ui->rcsport->setValue(optValue.toInt());
-
-				// Since we need the port number to be set beforehand,
-				// we'll wait to start the RCS  until all options have been parsed
-				// we'll then toggleRcs() if not already running.
-				if (optName == "RCS") {
-					toggOnOnff = ((optValue.toLower() == "true" || optValue == "1" ||
-									  optValue.toLower() == "on") &&
-								  rcs == NULL);
-				}
-			}
-		}
-		// now activate RCS
-		if (toggOnOnff) toggleRcs();
+		// Remote Control Socket options
+		if (pt.contains("RCSPort")) {
+            int rcs_port = pt.value("RCSPort").toInt();
+			ui->rcsport->setValue(rcs_port);
+            // In case it's already running (how?), stop the RCS listener.
+			ui->rcsCheckBox->setChecked(false);
+        }
+        
+        if (pt.contains("RCSEnabled")) {
+            bool b_enable_rcs = pt.value("RCSEnabled").toBool();
+			ui->rcsCheckBox->setChecked(b_enable_rcs);
+        }
 
 		// Check the wild-card-replaced filename to see if it exists already.
 		// If it does then increment the exp number.
@@ -545,19 +530,32 @@ void MainWindow::printReplacedFilename() {
 
 MainWindow::~MainWindow() noexcept = default;
 
-void MainWindow::toggleRcs() {
+void MainWindow::rcsCheckBoxChanged(bool checked) { enableRcs(checked); }
+
+void MainWindow::enableRcs(bool bEnable) {
 	if (rcs) {
-		rcs = nullptr;
-		ui->rcsbutton->setText("Start RCS");
-	} else {
+		if (!bEnable) {
+			disconnect(rcs.get());
+            rcs = nullptr;
+        }
+	} else if (bEnable) {
 		uint16_t port = ui->rcsport->value();
 		rcs = std::make_unique<RemoteControlSocket>(port);
-		ui->rcsbutton->setText("Stop RCS");
-
+		// TODO: Add some method to RemoteControlSocket to report if its server is listening (i.e. was successful).
 		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::rcsStartRecording);
 		connect(rcs.get(), &RemoteControlSocket::stop, this, &MainWindow::stopRecording);
 		connect(rcs.get(), &RemoteControlSocket::filename, this, &MainWindow::rcsUpdateFilename);
 	}
+	bool oldState = ui->rcsCheckBox->blockSignals(true);
+	ui->rcsCheckBox->setChecked(bEnable);
+	ui->rcsCheckBox->blockSignals(oldState);
+}
+
+void MainWindow::rcsportValueChangedInt(int value) {
+	if (rcs) {
+        enableRcs(false);  // Will also uncheck box.
+		enableRcs(true);   // Will also check box.
+    }
 }
 
 void MainWindow::rcsStartRecording() {
@@ -567,7 +565,6 @@ void MainWindow::rcsStartRecording() {
 	selectAllStreams();
 	startRecording();
 }
-
 
 void MainWindow::rcsUpdateFilename(QString s) {
 	//
@@ -588,10 +585,10 @@ void MainWindow::rcsUpdateFilename(QString s) {
 		// TODO: replace with QStringList and switch
 		if (option.toLower() == "root") {
 			ui->rootEdit->setText(QDir::toNativeSeparators(value));
-		} else if(option.toLower() == "template"){
-				// legacy
-				ui->check_bids->setChecked(false);
-				ui->lineEdit_template->setText(value.toLower());
+		} else if (option.toLower() == "template") {
+			// legacy
+			ui->check_bids->setChecked(false);
+			ui->lineEdit_template->setText(value.toLower());
 		} else if (option.toLower() == "task") {
 			ui->input_blocktask->clear();
 			ui->input_blocktask->addItem(value);
