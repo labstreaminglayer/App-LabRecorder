@@ -2,18 +2,26 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>634</width>
+    <height>433</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>Lab Recorder</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QGridLayout" name="gridLayout_master" rowstretch="0,0,0" columnstretch="1,1">
+   <layout class="QGridLayout" name="gridLayout_master">
     <item row="0" column="0">
      <widget class="QGroupBox" name="groupBox_recording">
       <property name="title">
        <string>Recording Control</string>
       </property>
-      <layout class="QHBoxLayout" name="horizontalLayout">
-       <item>
+      <layout class="QGridLayout" name="formLayout">
+       <item row="0" column="0">
         <widget class="QPushButton" name="startButton">
          <property name="text">
           <string>Start</string>
@@ -23,13 +31,46 @@
          </property>
         </widget>
        </item>
-       <item>
+       <item row="0" column="1">
         <widget class="QPushButton" name="stopButton">
          <property name="enabled">
           <bool>false</bool>
          </property>
          <property name="text">
           <string>Stop</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QCheckBox" name="rcsCheckBox">
+         <property name="text">
+          <string>Enable RCS</string>
+         </property>
+         <property name="tristate">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="rcsportLabel">
+         <property name="text">
+          <string>RCS Port:</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QSpinBox" name="rcsport">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>65535</number>
+         </property>
+         <property name="value">
+          <number>7000</number>
          </property>
         </widget>
        </item>
@@ -105,8 +146,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>316</width>
-         <height>312</height>
+         <width>332</width>
+         <height>284</height>
         </rect>
        </property>
        <layout class="QGridLayout" name="gridLayout_2">
@@ -194,7 +235,7 @@
           </property>
          </widget>
         </item>
-        <item row="7" column="1">
+        <item row="8" column="1">
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
@@ -227,6 +268,20 @@
           </property>
          </widget>
         </item>
+        <item row="7" column="0">
+         <widget class="QLabel" name="label_modality">
+          <property name="text">
+           <string>Modality (%m)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="QComboBox" name="input_modality">
+          <property name="editable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
      </widget>
@@ -238,8 +293,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>659</width>
-     <height>30</height>
+     <width>634</width>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -307,6 +362,7 @@
   <tabstop>lineEdit_participant</tabstop>
   <tabstop>lineEdit_session</tabstop>
   <tabstop>lineEdit_acq</tabstop>
+  <tabstop>input_modality</tabstop>
   <tabstop>scrollArea</tabstop>
  </tabstops>
  <resources/>

@@ -72,6 +72,8 @@ public:
 	 */
 	~recording();
 
+	void requestStop() noexcept;
+
 private:
 	// the file stream
 	XDFWriter file_; // the file output stream
@@ -101,7 +103,6 @@ private:
 	offset_lists
 		offset_lists_; // the clock offset lists for each stream (to be written into the footer)
 	std::mutex offset_mut_; // a mutex to protect the offset lists
-
 
 	// data for shutdown / final joining
 	std::list<thread_p> stream_threads_; // the spawned stream handling threads

@@ -13,6 +13,9 @@
 
 // recording class
 #include "recording.h"
+#include "tcpinterface.h"
+
+const QStringList bids_modalities_default = QStringList({"eeg", "ieeg", "meg", "beh"});
 
 MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	: QMainWindow(parent), ui(new Ui::MainWindow) {
@@ -40,6 +43,10 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		QMessageBox::about(this, "About this app", infostr);
 	});
 
+    // Signals for Remote Control Socket
+	connect(ui->rcsCheckBox, &QCheckBox::toggled, this, &MainWindow::rcsCheckBoxChanged);
+	connect(ui->rcsport, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::rcsportValueChangedInt);
+
 	// Wheenver lineEdit_template is changed, print the final result.
 	connect(
 		ui->lineEdit_template, &QLineEdit::textChanged, this, &MainWindow::printReplacedFilename);
@@ -48,9 +55,8 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 
 	// Signals for builder-related edits -> buildFilename
 	connect(ui->rootBrowseButton, &QPushButton::clicked, [this]() {
-		this->ui->rootEdit->setText(
-			QDir::toNativeSeparators(
-				QFileDialog::getExistingDirectory(this, "Study root folder...")));
+		this->ui->rootEdit->setText(QDir::toNativeSeparators(
+			QFileDialog::getExistingDirectory(this, "Study root folder...")));
 		this->buildFilename();
 	});
 	connect(ui->rootEdit, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
@@ -59,14 +65,14 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->lineEdit_session, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
 	connect(ui->lineEdit_acq, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
 	connect(ui->input_blocktask, &QComboBox::currentTextChanged, this, &MainWindow::buildFilename);
+	connect(ui->input_modality, &QComboBox::currentTextChanged, this, &MainWindow::buildFilename);
 	connect(ui->check_bids, &QCheckBox::toggled, [this](bool checked) {
 		auto &box = *ui->lineEdit_template;
 		box.setReadOnly(checked);
 		if (checked) {
 			legacyTemplate = box.text();
-			box.setText(
-				QDir::toNativeSeparators(
-					QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf")));
+			box.setText(QDir::toNativeSeparators(
+				QStringLiteral("sub-%p/ses-%s/%m/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_%m.xdf")));
 			ui->label_counter->setText("Run (%r)");
 		} else {
 			box.setText(QDir::toNativeSeparators(legacyTemplate));
@@ -80,7 +86,6 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	timer = std::make_unique<QTimer>(this);
 	connect(&*timer, &QTimer::timeout, this, &MainWindow::statusUpdate);
 	timer->start(1000);
-	// startTime = (int)lsl::local_clock();
 }
 
 void MainWindow::statusUpdate() const {
@@ -91,9 +96,9 @@ void MainWindow::statusUpdate() const {
 		fileinfo.refresh();
 		auto size = fileinfo.size();
 		QString timeString = QStringLiteral("Recording to %1 (%2; %3kb)")
-				.arg(QDir::toNativeSeparators(recFilename),
-					QDateTime::fromTime_t(elapsed).toUTC().toString("hh:mm:ss"),
-					QString::number(size / 1000));
+								 .arg(QDir::toNativeSeparators(recFilename),
+									 QDateTime::fromTime_t(elapsed).toUTC().toString("hh:mm:ss"),
+									 QString::number(size / 1000));
 		statusBar()->showMessage(timeString);
 	}
 }
@@ -115,8 +120,6 @@ void MainWindow::blockSelected(const QString &block) {
 void MainWindow::load_config(QString filename) {
 	qInfo() << "loading config file " << QDir::toNativeSeparators(filename);
 	try {
-		// if (!QFileInfo::exists(filename)) throw std::runtime_error("Settings file doesn't
-		// exist.");
 		QSettings pt(QDir::cleanPath(filename), QSettings::Format::IniFormat);
 
 		// ----------------------------
@@ -203,11 +206,30 @@ void MainWindow::load_config(QString filename) {
 			ui->lineEdit_template->setText(QDir::toNativeSeparators(legacyTemplate));
 		}
 
-		buildFilename();
+		// Append BIDS modalities to the default list.
+		ui->input_modality->insertItems(
+			ui->input_modality->count(), pt.value("BidsModalities", bids_modalities_default).toStringList());
+		ui->input_modality->setCurrentIndex(0);
+
+        buildFilename();
+
+		// Remote Control Socket options
+		if (pt.contains("RCSPort")) {
+            int rcs_port = pt.value("RCSPort").toInt();
+			ui->rcsport->setValue(rcs_port);
+            // In case it's already running (how?), stop the RCS listener.
+			ui->rcsCheckBox->setChecked(false);
+        }
+        
+        if (pt.contains("RCSEnabled")) {
+            bool b_enable_rcs = pt.value("RCSEnabled").toBool();
+			ui->rcsCheckBox->setChecked(b_enable_rcs);
+        }
 
 		// Check the wild-card-replaced filename to see if it exists already.
 		// If it does then increment the exp number.
-		// We only do this on settings-load because manual spin changes might indicate purposeful overwriting.
+		// We only do this on settings-load because manual spin changes might indicate purposeful
+		// overwriting.
 		QString recFilename = QDir::cleanPath(ui->lineEdit_template->text());
 		// Spin Number
 		if (recFilename.contains(counterPlaceholder())) {
@@ -273,34 +295,36 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 }
 
 void MainWindow::startRecording() {
-
 	if (!currentRecording) {
 
 		// automatically refresh streams
 		const std::vector<lsl::stream_info> resolvedStreams = refreshStreams();
 		const QSet<QString> checked = getCheckedStreams();
 
-		// if a checked stream is now missing
-		// change to "checked.intersects(missingStreams) as soon as Ubuntu 16.04/Qt 5.5 is EOL
-		QSet<QString> missing = checked;
-		if (!missing.intersect(missingStreams).isEmpty()) {
-			// are you sure?
-			QMessageBox msgBox(QMessageBox::Warning, "Stream not found",
-				"At least one of the streams that you checked seems to be offline",
-				QMessageBox::Yes | QMessageBox::No, this);
-			msgBox.setInformativeText("Do you want to start recording anyway?");
-			msgBox.setDefaultButton(QMessageBox::No);
-			if (msgBox.exec() != QMessageBox::Yes) return;
+		if (!hideWarnings) {
+			// if a checked stream is now missing
+			// change to "checked.intersects(missingStreams) as soon as Ubuntu 16.04/Qt 5.5 is EOL
+			QSet<QString> missing = checked;
+			if (!missing.intersect(missingStreams).isEmpty()) {
+				// are you sure?
+				QMessageBox msgBox(QMessageBox::Warning, "Stream not found",
+					"At least one of the streams that you checked seems to be offline",
+					QMessageBox::Yes | QMessageBox::No, this);
+				msgBox.setInformativeText("Do you want to start recording anyway?");
+				msgBox.setDefaultButton(QMessageBox::No);
+				if (msgBox.exec() != QMessageBox::Yes) return;
+			}
+
+			if (checked.isEmpty()) {
+				QMessageBox msgBox(QMessageBox::Warning, "No streams selected",
+					"You have selected no streams", QMessageBox::Yes | QMessageBox::No, this);
+				msgBox.setInformativeText("Do you want to start recording anyway?");
+				msgBox.setDefaultButton(QMessageBox::No);
+				if (msgBox.exec() != QMessageBox::Yes) return;
+			}
 		}
 
-		if (checked.isEmpty()) {
-			QMessageBox msgBox(QMessageBox::Warning, "No streams selected",
-				"You have selected no streams", QMessageBox::Yes | QMessageBox::No, this);
-			msgBox.setInformativeText("Do you want to start recording anyway?");
-			msgBox.setDefaultButton(QMessageBox::No);
-			if (msgBox.exec() != QMessageBox::Yes) return;
-		}
-
+		// don't hide critical errors.
 		QString recFilename = replaceFilename(QDir::cleanPath(ui->lineEdit_template->text()));
 		if (recFilename.isEmpty()) {
 			QMessageBox::critical(this, "Filename empty", "Can not record without a file name");
@@ -315,8 +339,8 @@ void MainWindow::startRecording() {
 					this, "Error", "Recording path already exists and is a directory");
 				return;
 			}
-			QString rename_to = recFileInfo.absolutePath() + '/' +
-								recFileInfo.baseName() + "_old%1." + recFileInfo.suffix();
+			QString rename_to = recFileInfo.absolutePath() + '/' + recFileInfo.baseName() +
+								"_old%1." + recFileInfo.suffix();
 			// search for highest _oldN
 			int i = 1;
 			while (QFileInfo::exists(rename_to.arg(i))) i++;
@@ -399,14 +423,19 @@ void MainWindow::buildBidsTemplate() {
 	if (ui->input_blocktask->currentText().isEmpty()) {
 		ui->input_blocktask->setCurrentText("Default");
 	}
+	// BIDS modality selection
+	if (ui->input_modality->currentText().isEmpty()) {
+		ui->input_modality->insertItems(0, bids_modalities_default);
+		ui->input_modality->setCurrentIndex(0);
+	}
 
 	// Folder hierarchy
-	QStringList fileparts{"sub-%p", "ses-%s", "eeg"};
+	QStringList fileparts{"sub-%p", "ses-%s", "%m"};
 
 	// filename
 	QString fname = "sub-%p_ses-%s_task-%b";
 	if (!ui->lineEdit_acq->text().isEmpty()) { fname.append("_acq-%a"); }
-	fname.append("_run-%r_eeg.xdf");
+	fname.append("_run-%r_%m.xdf");
 	fileparts << fname;
 	ui->lineEdit_template->setText(QDir::toNativeSeparators(fileparts.join('/')));
 }
@@ -447,6 +476,7 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 	fullfile.replace("%p", ui->lineEdit_participant->text());
 	fullfile.replace("%s", ui->lineEdit_session->text());
 	fullfile.replace("%a", ui->lineEdit_acq->text());
+	fullfile.replace("%m", ui->input_modality->currentText());
 
 	// Replace either %r or %n with the counter
 	QString run = QString("%1").arg(ui->spin_counter->value(), 3, 10, QChar('0'));
@@ -490,13 +520,95 @@ QString MainWindow::find_config_file(const char *filename) {
 	return "";
 }
 
-QString MainWindow::counterPlaceholder() const
-{
-	return ui->check_bids->isChecked() ? "%r" : "%n";
-}
+QString MainWindow::counterPlaceholder() const { return ui->check_bids->isChecked() ? "%r" : "%n"; }
 
 void MainWindow::printReplacedFilename() {
 	ui->locationLabel->setText(
 		ui->rootEdit->text() + '\n' + replaceFilename(ui->lineEdit_template->text()));
 }
+
 MainWindow::~MainWindow() noexcept = default;
+
+void MainWindow::rcsCheckBoxChanged(bool checked) { enableRcs(checked); }
+
+void MainWindow::enableRcs(bool bEnable) {
+	if (rcs) {
+		if (!bEnable) {
+			disconnect(rcs.get());
+            rcs = nullptr;
+        }
+	} else if (bEnable) {
+		uint16_t port = ui->rcsport->value();
+		rcs = std::make_unique<RemoteControlSocket>(port);
+		// TODO: Add some method to RemoteControlSocket to report if its server is listening (i.e. was successful).
+		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::rcsStartRecording);
+		connect(rcs.get(), &RemoteControlSocket::stop, this, &MainWindow::stopRecording);
+		connect(rcs.get(), &RemoteControlSocket::filename, this, &MainWindow::rcsUpdateFilename);
+	}
+	bool oldState = ui->rcsCheckBox->blockSignals(true);
+	ui->rcsCheckBox->setChecked(bEnable);
+	ui->rcsCheckBox->blockSignals(oldState);
+}
+
+void MainWindow::rcsportValueChangedInt(int value) {
+	if (rcs) {
+        enableRcs(false);  // Will also uncheck box.
+		enableRcs(true);   // Will also check box.
+    }
+}
+
+void MainWindow::rcsStartRecording() {
+	// since we want to avoid a pop-up window when streams are missing or unchecked,
+	// we'll check all the streams and start recording
+	hideWarnings = true;
+	selectAllStreams();
+	startRecording();
+}
+
+void MainWindow::rcsUpdateFilename(QString s) {
+	//
+	// format: "filename {option:value}{option:value}
+	// Options are:
+	//	root: full path to Study root;
+	//  template: legacy filename template, left to default (bids) if unspecified;
+	//	task; run; participant; session; acquisition: base options
+	//	(BIDS) modality: from either the defaults eeg, ieeg, meg, beh or adding a new
+	//		potentially unsupported value.
+	QRegularExpression re("{(?P<option>[a-zA-Z]+):(?P<value>[a-zA-z0-9:\\\/]+)}");
+	re.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
+	QRegularExpressionMatchIterator i = re.globalMatch(s);
+	while (i.hasNext()) {
+		QRegularExpressionMatch match = i.next();
+		QString option = match.captured("option");
+		QString value = match.captured("value");
+		// TODO: replace with QStringList and switch
+		if (option.toLower() == "root") {
+			ui->rootEdit->setText(QDir::toNativeSeparators(value));
+		} else if (option.toLower() == "template") {
+			// legacy
+			ui->check_bids->setChecked(false);
+			ui->lineEdit_template->setText(value.toLower());
+		} else if (option.toLower() == "task") {
+			ui->input_blocktask->clear();
+			ui->input_blocktask->addItem(value);
+			ui->input_blocktask->setCurrentIndex(0);
+		} else if (option.toLower() == "run") {
+			ui->spin_counter->setValue(value.toInt());
+		} else if (option.toLower() == "participant") {
+			ui->lineEdit_participant->setText(value);
+		} else if (option.toLower() == "session") {
+			ui->lineEdit_session->setText(value);
+		} else if (option.toLower() == "acquisition") {
+			ui->lineEdit_acq->setText(value);
+		} else if (option.toLower() == "modality") {
+			if (ui->input_modality->findText(value.toLower()) != -1)
+				ui->input_modality->setCurrentIndex(ui->input_modality->findText(value.toLower()));
+			else {
+				ui->input_modality->insertItem(ui->input_modality->count(), value.toLower());
+				ui->input_modality->setCurrentIndex(ui->input_modality->count() - 1);
+			}
+		}
+	}
+	// to make sure all the values are updated.
+	buildFilename();
+}

@@ -1,7 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
-#include <QComboBox>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QStringList>
@@ -16,6 +16,7 @@ class MainWindow;
 }
 
 class recording;
+class RemoteControlSocket;
 
 class RecorderItem {
 
@@ -44,6 +45,11 @@ private slots:
 	void buildFilename();
 	void buildBidsTemplate();
 	void printReplacedFilename();
+	void enableRcs(bool bEnable);
+	void rcsCheckBoxChanged(bool checked);
+	void rcsUpdateFilename(QString s);
+	void rcsStartRecording();
+	void rcsportValueChangedInt(int value);
 
 private:
 	QSet<QString> getCheckedStreams() const;
@@ -55,6 +61,7 @@ private:
 	void save_config(QString filename);
 
 	std::unique_ptr<recording> currentRecording;
+	std::unique_ptr<RemoteControlSocket> rcs;
 
 	int startTime;
 	std::unique_ptr<QTimer> timer;
@@ -63,9 +70,13 @@ private:
 	std::map<std::string, int> syncOptionsByStreamName;
 	QSet<QString> missingStreams;
 
-	//QString recFilename;
+	// QString recFilename;
 	QString legacyTemplate;
 	std::unique_ptr<Ui::MainWindow> ui; // window pointer
+
+	// @Doug1983 added to suppress pop-ups when remotely starting recording
+	// and missing streams or having some unchecked streams
+	bool hideWarnings = false;
 };
 
 #endif // MAINWINDOW_H
