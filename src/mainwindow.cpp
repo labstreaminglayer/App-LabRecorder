@@ -15,6 +15,8 @@
 #include "recording.h"
 #include "tcpinterface.h"
 
+const QStringList bids_modalities_default = QStringList({"eeg", "ieeg", "meg", "beh"});
+
 MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	: QMainWindow(parent), ui(new Ui::MainWindow) {
 	ui->setupUi(this);
@@ -40,7 +42,10 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 						  "\nLSL library info:" + lsl::lsl_library_info();
 		QMessageBox::about(this, "About this app", infostr);
 	});
-	connect(ui->rcsbutton, &QPushButton::clicked, this, &MainWindow::toggleRcs);
+
+    // Signals for Remote Control Socket
+	connect(ui->rcsCheckBox, &QCheckBox::toggled, this, &MainWindow::rcsCheckBoxChanged);
+	connect(ui->rcsport, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::rcsportValueChangedInt);
 
 	// Wheenver lineEdit_template is changed, print the final result.
 	connect(
@@ -68,14 +73,12 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 			legacyTemplate = box.text();
 			box.setText(QDir::toNativeSeparators(
 				QStringLiteral("sub-%p/ses-%s/%m/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_%m.xdf")));
-				//QStringLiteral("sub-%p/ses-%s/eeg/sub-%p_ses-%s_task-%b[_acq-%a]_run-%r_eeg.xdf")));
 			ui->label_counter->setText("Run (%r)");
 		} else {
 			box.setText(QDir::toNativeSeparators(legacyTemplate));
 			ui->label_counter->setText("Exp num (%n)");
 		}
 	});
-	connect(ui->rcsbutton, &QPushButton::clicked, this, &MainWindow::toggleRcs);
 
 	QString cfgfilepath = find_config_file(config_file);
 	load_config(cfgfilepath);
@@ -203,47 +206,25 @@ void MainWindow::load_config(QString filename) {
 			ui->lineEdit_template->setText(QDir::toNativeSeparators(legacyTemplate));
 		}
 
-		buildFilename();
+		// Append BIDS modalities to the default list.
+		ui->input_modality->insertItems(
+			ui->input_modality->count(), pt.value("BidsModalities", bids_modalities_default).toStringList());
+		ui->input_modality->setCurrentIndex(0);
 
-		// Added by @Doug1983 to increase config file functionality:
-		// Append BIDS modalities to the default list. Need to be called after buildFilename
-		// since the default values are added there.
-		QStringList bidsModalities;
-		if (pt.contains("BidsModalities")) {
-			bidsModalities = pt.value("BidsModalities").toStringList();
-		}
-		ui->input_modality->insertItems(ui->input_modality->count(), bidsModalities);
+        buildFilename();
 
-		// RCS options
-		// 1 - Set the RemoteControlSocket value On/Off
-		// 2 - Set the port value for the socket
-		QStringList rcsOpts;
-		bool toggOnOnff = false;
-		if (pt.contains("RCSOptions")) { rcsOpts = pt.value("RCSOptions").toStringList(); }
-		for (QString &opt : rcsOpts) {
-			QStringList words = opt.split(' ', QString::SkipEmptyParts);
-			// The first word is the option name: (RCS), (Port), (Rec)
-			// second word is the value.
-			if (!words.isEmpty()) {
-				QString optName = words.constFirst();
-				QString optValue = words.constLast();
-
-				// Check port number.
-				if (optName == "Port") ui->rcsport->setValue(optValue.toInt());
-
-				// Since we need the port number to be set beforehand,
-				// we'll wait to start the RCS  until all options have been parsed
-				// we'll then toggleRcs() if not already running.
-				if (optName == "RCS") {
-					toggOnOnff = ((optValue.toLower() == "true" || optValue == "1" ||
-									  optValue.toLower() == "on") &&
-								  rcs == NULL);
-				}
-			}
-		}
-		// now activate RCS
-		if (toggOnOnff) toggleRcs();
-		// end added @Doug1983
+		// Remote Control Socket options
+		if (pt.contains("RCSPort")) {
+            int rcs_port = pt.value("RCSPort").toInt();
+			ui->rcsport->setValue(rcs_port);
+            // In case it's already running (how?), stop the RCS listener.
+			ui->rcsCheckBox->setChecked(false);
+        }
+        
+        if (pt.contains("RCSEnabled")) {
+            bool b_enable_rcs = pt.value("RCSEnabled").toBool();
+			ui->rcsCheckBox->setChecked(b_enable_rcs);
+        }
 
 		// Check the wild-card-replaced filename to see if it exists already.
 		// If it does then increment the exp number.
@@ -442,10 +423,9 @@ void MainWindow::buildBidsTemplate() {
 	if (ui->input_blocktask->currentText().isEmpty()) {
 		ui->input_blocktask->setCurrentText("Default");
 	}
-	// Added by @Doug1983 to implement the BIDS modality selection, instead of the
-	// single eeg option.
+	// BIDS modality selection
 	if (ui->input_modality->currentText().isEmpty()) {
-		ui->input_modality->insertItems(0, {"eeg", "ieeg", "meg", "beh"});
+		ui->input_modality->insertItems(0, bids_modalities_default);
 		ui->input_modality->setCurrentIndex(0);
 	}
 
@@ -456,7 +436,6 @@ void MainWindow::buildBidsTemplate() {
 	QString fname = "sub-%p_ses-%s_task-%b";
 	if (!ui->lineEdit_acq->text().isEmpty()) { fname.append("_acq-%a"); }
 	fname.append("_run-%r_%m.xdf");
-	//fname.append("_run-%r_eeg.xdf");
 	fileparts << fname;
 	ui->lineEdit_template->setText(QDir::toNativeSeparators(fileparts.join('/')));
 }
@@ -550,19 +529,32 @@ void MainWindow::printReplacedFilename() {
 
 MainWindow::~MainWindow() noexcept = default;
 
-void MainWindow::toggleRcs() {
+void MainWindow::rcsCheckBoxChanged(bool checked) { enableRcs(checked); }
+
+void MainWindow::enableRcs(bool bEnable) {
 	if (rcs) {
-		rcs = nullptr;
-		ui->rcsbutton->setText("Start RCS");
-	} else {
+		if (!bEnable) {
+			disconnect(rcs.get());
+            rcs = nullptr;
+        }
+	} else if (bEnable) {
 		uint16_t port = ui->rcsport->value();
 		rcs = std::make_unique<RemoteControlSocket>(port);
-		ui->rcsbutton->setText("Stop RCS");
-
+		// TODO: Add some method to RemoteControlSocket to report if its server is listening (i.e. was successful).
 		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::rcsStartRecording);
 		connect(rcs.get(), &RemoteControlSocket::stop, this, &MainWindow::stopRecording);
 		connect(rcs.get(), &RemoteControlSocket::filename, this, &MainWindow::rcsUpdateFilename);
 	}
+	bool oldState = ui->rcsCheckBox->blockSignals(true);
+	ui->rcsCheckBox->setChecked(bEnable);
+	ui->rcsCheckBox->blockSignals(oldState);
+}
+
+void MainWindow::rcsportValueChangedInt(int value) {
+	if (rcs) {
+        enableRcs(false);  // Will also uncheck box.
+		enableRcs(true);   // Will also check box.
+    }
 }
 
 void MainWindow::rcsStartRecording() {
@@ -572,7 +564,6 @@ void MainWindow::rcsStartRecording() {
 	selectAllStreams();
 	startRecording();
 }
-
 
 void MainWindow::rcsUpdateFilename(QString s) {
 	//
@@ -593,10 +584,10 @@ void MainWindow::rcsUpdateFilename(QString s) {
 		// TODO: replace with QStringList and switch
 		if (option.toLower() == "root") {
 			ui->rootEdit->setText(QDir::toNativeSeparators(value));
-		} else if(option.toLower() == "template"){
-				// legacy
-				ui->check_bids->setChecked(false);
-				ui->lineEdit_template->setText(value.toLower());
+		} else if (option.toLower() == "template") {
+			// legacy
+			ui->check_bids->setChecked(false);
+			ui->lineEdit_template->setText(value.toLower());
 		} else if (option.toLower() == "task") {
 			ui->input_blocktask->clear();
 			ui->input_blocktask->addItem(value);
