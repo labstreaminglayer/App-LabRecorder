@@ -11,8 +11,6 @@ environment:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
       QTCOMPILER: msvc2017_64
       QTVER: 5.13
-    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu1604
-      DEPLOYNAME: Linux64-xenial
     - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu1804
       DEPLOYNAME: Linux64-bionic
 install:
