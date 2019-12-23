@@ -3,3 +3,6 @@ ui_*.h
 /build*/
 /CMakeLists.txt.user
 /CMakeLists.json
+/.vs/
+/out/
+/CMakeSettings.json
