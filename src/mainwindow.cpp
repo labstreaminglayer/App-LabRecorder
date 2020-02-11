@@ -138,7 +138,9 @@ void MainWindow::load_config(QString filename) {
 				qInfo() << "Invalid sync stream config: " << oss;
 				continue;
 			}
-			QString key = words.takeFirst() + ' ' + words.takeFirst();
+			QString first = words.takeFirst();
+			QString second = words.takeFirst();
+			QString key = first + ' ' + second;1
 
 			int val = 0;
 			for (const auto &word : words) {
