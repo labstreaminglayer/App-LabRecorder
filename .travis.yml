@@ -1,7 +1,7 @@
 language: cpp
 compiler: clang
 env:
-  LSL_VERSION="1.13.0-b13"
+  LSL_VERSION="1.13.0"
 matrix:
   include:
   - os: osx
@@ -12,19 +12,16 @@ before_install:
 - brew upgrade cmake
 install:
 - git clone https://github.com/sccn/liblsl.git
-- mkdir liblsl/build && cd liblsl/build
-- cmake -DCMAKE_INSTALL_PREFIX=../../LSL/ -DLSL_UNIXFOLDERS=ON ..
-- cmake --build . --config Release --target install
-- cd ../..
+- cmake -S liblsl -B liblsl/build -DCMAKE_INSTALL_PREFIX=$PWD/LSL/ -DLSL_UNIXFOLDERS=ON ..
+- cmake --build liblsl/build --config Release --target install
 before_script:
 - brew install qt;
 - export LSL_INSTALL_ROOT=LSL
 script:
-- mkdir build && cd build
 - cmake --version
-- cmake -DLSL_INSTALL_ROOT=${LSL_INSTALL_ROOT} -DQt5_DIR=/usr/local/opt/qt/lib/cmake/Qt5 ..
-- cmake --build . --config Release --target install
-- cd install/Labrecorder
+- cmake -S . -B build -DLSL_INSTALL_ROOT=${LSL_INSTALL_ROOT} -DQt5_DIR=/usr/local/opt/qt/lib/cmake/Qt5
+- cmake --build build --config Release --target install
+- cd build/install/Labrecorder
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then for app in *.app; do /usr/local/opt/qt/bin/macdeployqt
   ${app} -dmg; mv "${app%.app}.dmg" "${app%.app}-${LSL_VERSION}-${TRAVIS_OSX_IMAGE}.dmg";
   done; fi

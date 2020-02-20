@@ -4,7 +4,14 @@ project(LabRecorder
 	LANGUAGES CXX
 	VERSION 1.13.0)
 
-include(Findliblsl.cmake)
+find_package(LSL REQUIRED
+	HINTS ${LSL_INSTALL_ROOT}
+	"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/build/"
+	"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/build/install"
+	"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/out/build/x64-Release"
+	"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/out/install/x64-Release"
+	PATH_SUFFIXES share/LSL
+)
 
 option(LABRECORDER_XDFZ "use Boost.Iostreams for XDFZ support" Off)
 option(LABRECORDER_BOOST_TYPE_CONVERSIONS "Use boost for type conversions" Off)
