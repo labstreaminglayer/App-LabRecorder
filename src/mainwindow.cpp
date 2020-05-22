@@ -39,7 +39,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->actionAbout, &QAction::triggered, [this]() {
 		QString infostr = QStringLiteral("LSL library version: ") +
 						  QString::number(lsl::library_version()) +
-						  "\nLSL library info:" + lsl::lsl_library_info();
+						  "\nLSL library info:" + lsl::library_info();
 		QMessageBox::about(this, "About this app", infostr);
 	});
 
