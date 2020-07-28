@@ -39,7 +39,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->actionAbout, &QAction::triggered, [this]() {
 		QString infostr = QStringLiteral("LSL library version: ") +
 						  QString::number(lsl::library_version()) +
-						  "\nLSL library info:" + lsl::lsl_library_info();
+						  "\nLSL library info:" + lsl::library_info();
 		QMessageBox::about(this, "About this app", infostr);
 	});
 
@@ -246,7 +246,7 @@ void MainWindow::load_config(QString filename) {
 
 void MainWindow::save_config(QString filename) {
 	QSettings settings(filename, QSettings::Format::IniFormat);
-	settings.setValue("StudyRoot", QDir::cleanPath(ui->lineEdit_template->text()));
+	settings.setValue("StudyRoot", QDir::cleanPath(ui->rootEdit->text()));
 	if (!ui->check_bids->isChecked())
 		settings.setValue("PathTemplate", QDir::cleanPath(ui->lineEdit_template->text()));
 	qInfo() << requiredStreams;
@@ -574,7 +574,7 @@ void MainWindow::rcsUpdateFilename(QString s) {
 	//	task; run; participant; session; acquisition: base options
 	//	(BIDS) modality: from either the defaults eeg, ieeg, meg, beh or adding a new
 	//		potentially unsupported value.
-	QRegularExpression re("{(?P<option>[a-zA-Z]+):(?P<value>[a-zA-z0-9:\\\/]+)}");
+	QRegularExpression re("{(?P<option>[a-zA-Z]+):(?P<value>[a-zA-z0-9:\\/]+)}");
 	re.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
 	QRegularExpressionMatchIterator i = re.globalMatch(s);
 	while (i.hasNext()) {

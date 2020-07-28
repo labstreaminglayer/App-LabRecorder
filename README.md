@@ -9,7 +9,9 @@ The LabRecorder is the default recording program that comes with LSL. It allows 
 
 The file format used by the LabRecorder is XDF. This is a new open general-purpose format that was designed concurrently with LSL and supports all features of LSL streams. The project page is [here](https://github.com/sccn/xdf). There are importers for MATLAB (included with the distribution), EEGLAB, BCILAB, Python, and MoBILAB (available separately on the Downloads page).
 
-# [Build instructions](BUILD.md)
+# Getting LabRecorder
+
+Navigate to the [`releases` page](https://github.com/labstreaminglayer/App-LabRecorder/releases) and download the latest release for your platform.
 
 # Usage
 
@@ -50,3 +52,4 @@ You should check the health of your device to be sure, however, for example usin
 
 If a device is displayed in red when you start recording (and it is checked), it will be added to the ongoing recording by the time when it comes online. This can be useful when a device can only be turned on while the recording is already in progress. Again, it is advisable to check that the device is in fact discoverable and added. The LabRecorder brings up a console window in the background which shows a list of all streams that are added to the recording -- this is a good place to check whether a late stream did get picked up successfully during a live recording.
 
+# [Build instructions](BUILD.md)
