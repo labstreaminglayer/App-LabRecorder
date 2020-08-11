@@ -114,7 +114,7 @@ installLSLApp(${PROJECT_NAME})
 installLSLApp(LabRecorderCLI)
 installLSLApp(testxdfwriter)
 installLSLAuxFiles(${PROJECT_NAME}
-	${PROJECT_NAME}.cfg
+	${PROJECT_NAME}.cfg LICENSE README.md
 )
 
 if (WIN32)
