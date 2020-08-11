@@ -574,7 +574,8 @@ void MainWindow::rcsUpdateFilename(QString s) {
 	//	task; run; participant; session; acquisition: base options
 	//	(BIDS) modality: from either the defaults eeg, ieeg, meg, beh or adding a new
 	//		potentially unsupported value.
-	QRegularExpression re("{(?P<option>[a-zA-Z]+):(?P<value>[a-zA-z0-9:\\/]+)}");
+	QRegularExpression re("{(?P<option>[a-zA-Z]+)\\:(?P<value>[^\\{\\}\\n\\r\\?\\*\\|\\<\\>\"]+)}");
+	
 	re.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
 	QRegularExpressionMatchIterator i = re.globalMatch(s);
 	while (i.hasNext()) {
@@ -610,5 +611,5 @@ void MainWindow::rcsUpdateFilename(QString s) {
 		}
 	}
 	// to make sure all the values are updated.
-	buildFilename();
+	printReplacedFilename();
 }
