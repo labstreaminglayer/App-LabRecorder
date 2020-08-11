@@ -1,7 +1,7 @@
 language: cpp
 compiler: clang
 env:
-  LSL_VERSION="1.13.0"
+  APP_VERSION="1.13.1"
 matrix:
   include:
   - os: osx
@@ -23,7 +23,7 @@ script:
 - cmake --build build --config Release --target install
 - cd build/install/Labrecorder
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then for app in *.app; do /usr/local/opt/qt/bin/macdeployqt
-  ${app} -dmg; mv "${app%.app}.dmg" "${app%.app}-${LSL_VERSION}-${TRAVIS_OSX_IMAGE}.dmg";
+  ${app} -dmg; mv "${app%.app}.dmg" "${app%.app}-${APP_VERSION}-${TRAVIS_OSX_IMAGE}.dmg";
   done; fi
 deploy:
   provider: releases
@@ -31,8 +31,8 @@ deploy:
   api_key:
     secure: FQ+xqPuImk2ie4KeoDrP1u+6TB2qIoLPTk0wr7EEv+7oBfLodExVSyC67TEUVKUVnAYv2E1FFfHLZPUzMeiuFT6o40jkwekHEte3dbgWTgmW9iqiDw4eK5X0obZbDoYLJBbOiQfUsgH8nKpE/U5MprTpQ3KKQr2CjbcqGZnDY6k2yNope70bMe//4zBgv+qjvR1CDeI8sSrSUkBgDgVhujqNzS8I0FPoLAmJuBuFiA5Y7f/uwO17M1Nfso9WnNiWA8XhgJ1mgoA8BYrIx9hP2niK4gkFJ3p/iV0IK51KNxEELIQ7IKw/U12CLYD7+hKFBpyrZGcgCwXCHXR/G3/kNsxJrk395u+78gTLdiE3AuksWQZ+f+6br2pBG3UBTu/Qm3cVcVQRtNArKXDgiCaMc0qECL51o6qNTzPhLAHvGVGZCOjp34vW44MMWtKh584LqShojN/DH1OBUR3PjaHHiuxQMuaUXHto8SDfl0ZRSaeyElI+6kmU3XfTJfqFq2DpTX5LMYoiZUXwMKKQtWTGp8I2axL1LCnUsX/nlY63AoCY7CJTwX+DE1//YBwOsfafQ/VOMIpzQCXJNuHR3EAFVk+qcFt0wTVu/aa2oTkBaGN67LE22/pkwT4kxpI3kaXDo94CE0diEZWu4hHHNoQF1C/WuH/DH4HErJW8tPGrEm8=
   file:
-  - LabRecorder-${LSL_VERSION}-${TRAVIS_OSX_IMAGE}.dmg
-  - LabRecorderCLI-${LSL_VERSION}-${TRAVIS_OSX_IMAGE}.dmg
+  - LabRecorder-${APP_VERSION}-${TRAVIS_OSX_IMAGE}.dmg
+  - LabRecorderCLI-${APP_VERSION}-${TRAVIS_OSX_IMAGE}.dmg
   on:
     repo: labstreaminglayer/App-LabRecorder
     tags: true

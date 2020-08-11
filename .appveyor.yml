@@ -1,18 +1,18 @@
-version: 1.13.0.{build}
+version: 1.13.1.{build}
 pull_requests:
   do_not_increment_build_number: true
 shallow_clone: true
 environment:
-  lsltag: 1.13.0
-  lslversion: 1.13.0
+  lsltag: 1.13.1
+  lslversion: 1.13.1
   LSLDIST_URL: "https://github.com/sccn/liblsl/releases/download"
   CMakeArgs: ""
   matrix:
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
     QTCOMPILER: msvc2017_64
-    QTVER: 5.13
-  - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu1804
-    DEPLOYNAME: Linux64-bionic
+    QTVER: 5.13.2
+#  - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu1804  # Now handled by GitHub Actions
+#    DEPLOYNAME: Linux64-bionic
 install:
 - cmd: appveyor DownloadFile %LSLDIST_URL%/%lsltag%/liblsl-%lslversion%-Win64.zip -FileName liblsl_x64.zip
 - cmd: 7z x liblsl_x64.zip -oLSL
@@ -27,6 +27,7 @@ artifacts:
 - path: 'build/*.deb'
 - path: 'build/*.tar.*'
 - path: 'build/*.7z'
+- path: 'build/*.zip'
 deploy:
   provider: GitHub
   auth_token:

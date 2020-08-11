@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 project(LabRecorder
 	LANGUAGES CXX
-	VERSION 1.13.0)
+	VERSION 1.13.1)
 
 find_package(LSL REQUIRED
 	HINTS ${LSL_INSTALL_ROOT}
