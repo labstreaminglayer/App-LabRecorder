@@ -26,6 +26,12 @@ void RemoteControlSocket::handleLine(QString s, QTcpSocket *sock) {
 		emit stop();
 	else if (s.contains("filename")) {
 		emit filename(s);
+	} else if (s.contains("select")) {
+		if (s.contains("all")) {
+			emit select_all();
+		} else if (s.contains("none")) {
+			emit select_none();
+		}
 	}
 	sock->write("OK");
 	// TODO: select /deselect streams

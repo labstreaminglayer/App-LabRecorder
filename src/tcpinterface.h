@@ -18,6 +18,8 @@ signals:
 	void start();
 	void stop();
 	void filename(QString s);
+	void select_all();
+	void select_none();
 
 public slots:
 	void addClient();
