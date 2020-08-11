@@ -544,6 +544,8 @@ void MainWindow::enableRcs(bool bEnable) {
 		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::rcsStartRecording);
 		connect(rcs.get(), &RemoteControlSocket::stop, this, &MainWindow::stopRecording);
 		connect(rcs.get(), &RemoteControlSocket::filename, this, &MainWindow::rcsUpdateFilename);
+		connect(rcs.get(), &RemoteControlSocket::select_all, this, &MainWindow::selectAllStreams);
+		connect(rcs.get(), &RemoteControlSocket::select_none, this, &MainWindow::selectNoStreams);
 	}
 	bool oldState = ui->rcsCheckBox->blockSignals(true);
 	ui->rcsCheckBox->setChecked(bEnable);
