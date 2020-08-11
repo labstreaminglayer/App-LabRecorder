@@ -383,7 +383,7 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			first_timestamp = last_timestamp = in->pull_sample(chunk, 4.0);
 		if (!shutdown_) {
 			timestamps.push_back(first_timestamp);
-			file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
+			file_.write_data_chunk(streamid, timestamps, chunk, (uint32_t)in->get_channel_count());
 		}
 
 		auto next_pull = Clock::now();

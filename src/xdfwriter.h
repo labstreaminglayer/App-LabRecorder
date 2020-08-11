@@ -55,7 +55,7 @@ public:
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,
 		const std::vector<T> &chunk, uint32_t n_channels) {
 		assert(timestamps.size() * n_channels == chunk.size());
-		write_data_chunk(streamid, timestamps, chunk.data(), timestamps.size(), n_channels);
+		write_data_chunk(streamid, timestamps, chunk.data(), (uint32_t)timestamps.size(), n_channels);
 	}
 	template <typename T>
 	void write_data_chunk_nested(streamid_t streamid, const std::vector<double> &timestamps,

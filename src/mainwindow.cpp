@@ -132,7 +132,7 @@ void MainWindow::load_config(QString filename) {
 		// ----------------------------
 		QStringList onlineSyncStreams = pt.value("OnlineSync", QStringList()).toStringList();
 		for (QString &oss : onlineSyncStreams) {
-			QStringList words = oss.split(' ', QString::SkipEmptyParts);
+			QStringList words = oss.split(' ', Qt::SkipEmptyParts);
 			// The first two words ("StreamName (PC)") are the stream identifier
 			if (words.length() < 2) {
 				qInfo() << "Invalid sync stream config: " << oss;
@@ -277,7 +277,9 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 
 	const QSet<QString> previouslyChecked = getCheckedStreams();
 	// Missing streams: all checked or required streams that weren't found
-	missingStreams = (previouslyChecked + requiredStreams.toSet()) - foundStreamNames;
+	missingStreams =
+		(previouslyChecked + QSet<QString>(requiredStreams.begin(), requiredStreams.end())) -
+		foundStreamNames;
 
 	// (Re-)Populate the UI list
 	const QBrush good_brush(QColor(0, 128, 0)), bad_brush(QColor(255, 0, 0));
