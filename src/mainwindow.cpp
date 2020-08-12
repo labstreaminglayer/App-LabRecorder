@@ -80,12 +80,12 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		}
 	});
 
-	QString cfgfilepath = find_config_file(config_file);
-	load_config(cfgfilepath);
-
 	timer = std::make_unique<QTimer>(this);
 	connect(&*timer, &QTimer::timeout, this, &MainWindow::statusUpdate);
 	timer->start(1000);
+
+	QString cfgfilepath = find_config_file(config_file);
+	load_config(cfgfilepath);
 }
 
 void MainWindow::statusUpdate() const {
@@ -119,13 +119,14 @@ void MainWindow::blockSelected(const QString &block) {
 
 void MainWindow::load_config(QString filename) {
 	qInfo() << "loading config file " << QDir::toNativeSeparators(filename);
+	bool auto_start = false;
 	try {
 		QSettings pt(QDir::cleanPath(filename), QSettings::Format::IniFormat);
 
 		// ----------------------------
 		// required streams
 		// ----------------------------
-		requiredStreams = pt.value("RequiredStreams").toStringList();
+		missingStreams = pt.value("RequiredStreams").toStringList().toSet();
 
 		// ----------------------------
 		// online sync streams
@@ -239,28 +240,34 @@ void MainWindow::load_config(QString filename) {
 			}
 		}
 
+		if (pt.contains("AutoStart")) {
+			auto_start = pt.value("AutoStart").toBool();
+		}
+
 	} catch (std::exception &e) { qWarning() << "Problem parsing config file: " << e.what(); }
 	// std::cout << "refreshing streams ..." <<std::endl;
 	refreshStreams();
-}
+
+	if (auto_start) { startRecording(); }
+ }
 
 void MainWindow::save_config(QString filename) {
 	QSettings settings(filename, QSettings::Format::IniFormat);
 	settings.setValue("StudyRoot", QDir::cleanPath(ui->rootEdit->text()));
 	if (!ui->check_bids->isChecked())
 		settings.setValue("PathTemplate", QDir::cleanPath(ui->lineEdit_template->text()));
-	qInfo() << requiredStreams;
+	// Build QStringList from missingStreams and knownStreams that are missing.
+	QStringList requiredStreams = missingStreams.values();
+	for (auto &k : knownStreams) {
+		if (k.checked) { requiredStreams.append(k.listName()); }
+	}
+	qInfo() << missingStreams;
 	settings.setValue("RequiredStreams", requiredStreams);
 	// Stub.
 }
 
-QSet<QString> MainWindow::getCheckedStreams() const {
-	QSet<QString> checked;
-	for (int i = 0; i < ui->streamList->count(); i++) {
-		QListWidgetItem *item = ui->streamList->item(i);
-		if (item->checkState() == Qt::Checked) checked.insert(item->text());
-	}
-	return checked;
+QString info_to_listName(lsl::stream_info info) {
+	return QString::fromStdString(info.name() + " (" + info.hostname() + ")");
 }
 
 /**
@@ -271,42 +278,87 @@ QSet<QString> MainWindow::getCheckedStreams() const {
 std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 	std::vector<lsl::stream_info> resolvedStreams = lsl::resolve_streams(1.0);
 
-	QSet<QString> foundStreamNames;
-	for (auto &s : resolvedStreams)
-		foundStreamNames.insert(QString::fromStdString(s.name() + " (" + s.hostname() + ")"));
-
-	const QSet<QString> previouslyChecked = getCheckedStreams();
-	// Missing streams: all checked or required streams that weren't found
-	// requiredStreams.toSet() is deprecated. Eventually change to: QSet<QString>(requiredStreams.begin(), requiredStreams.end())
-	missingStreams = (previouslyChecked + requiredStreams.toSet()) - foundStreamNames;
-
-	// (Re-)Populate the UI list
+	// For each item in resolvedStreams, ignore if already in knownStreams, otherwise add to knownStreams.
+	// if in missingStreams then also mark it as required (--> checked by default) and remove from missingStreams.
+	for (auto& s : resolvedStreams) {
+		bool known = false;
+		for (auto &k : knownStreams) {
+			known |= s.name() == k.name && s.type() == k.type && s.source_id() == k.id;
+		}
+		if (!known) {
+			bool found = missingStreams.contains(info_to_listName(s));
+			knownStreams << StreamItem(s.name(), s.type(), s.source_id(), s.hostname(), found);
+			if (found) { missingStreams.remove(info_to_listName(s)); }
+		}
+	}
+	// For each item in knownStreams, update its checked status from GUI. (only works for streams found on a previous refresh)
+	// Because we search by name + host, entries aren't guaranteed to be unique, so checking one entry with matching name and host checks them all.
+	for (auto &k : knownStreams) {
+		QList<QListWidgetItem *> foundItems = ui->streamList->findItems(k.listName(), Qt::MatchCaseSensitive);
+		if (foundItems.count() > 0) {
+			bool checked = false;
+			for (auto &fi : foundItems) { checked |= fi->checkState() == Qt::Checked; }
+			k.checked = checked;
+		}
+	}
+	// For each item in knownStreams; if it is not resolved then drop it. If it was checked then add back to missingStreams.
+	int k_ind = 0;
+	while (k_ind < knownStreams.count()) {
+		StreamItem k = knownStreams.at(k_ind);
+		bool resolved = false;
+		size_t r_ind = 0;
+		while (!resolved && r_ind < resolvedStreams.size()) {
+			lsl::stream_info r = resolvedStreams[r_ind];
+			resolved |= (r.name() == k.name) && (r.type() == k.type) && (r.source_id() == k.id);
+			r_ind++;
+		}
+		if (!resolved) {
+			if (k.checked) { missingStreams += k.listName(); }
+			knownStreams.removeAt(k_ind);
+		} else {
+			k_ind++;
+		}
+	}
+	// Clear the streamList
+	// Add missing items first.
+	// Then add knownStreams (only in list if resolved).
 	const QBrush good_brush(QColor(0, 128, 0)), bad_brush(QColor(255, 0, 0));
 	ui->streamList->clear();
-	for (auto &&streamName : foundStreamNames + missingStreams) {
-		auto *item = new QListWidgetItem(streamName, ui->streamList);
-
-		item->setCheckState(previouslyChecked.contains(streamName) ? Qt::Checked : Qt::Unchecked);
-		item->setForeground(missingStreams.contains(streamName) ? bad_brush : good_brush);
-
+	for (auto& m : missingStreams) {
+		auto *item = new QListWidgetItem(m, ui->streamList);
+		item->setCheckState(Qt::Checked);
+		item->setForeground(bad_brush);
+		ui->streamList->addItem(item);
+	}
+	for (auto& k : knownStreams) {
+		auto *item = new QListWidgetItem(k.listName(), ui->streamList);
+		item->setCheckState(k.checked ? Qt::Checked : Qt::Unchecked);
+		item->setForeground(good_brush);
 		ui->streamList->addItem(item);
 	}
 
-	return resolvedStreams;
+	// return a std::vector of streams of checked and not missing streams.
+	std::vector<lsl::stream_info> requestedAndAvailableStreams;
+	for (auto &r : resolvedStreams) {
+		for (auto &k : knownStreams) {
+			if ((r.name() == k.name) && (r.type() == k.type) && (r.source_id() == k.id)) {
+				if (k.checked) { requestedAndAvailableStreams.push_back(r); }
+				break;
+			}
+		}
+	}
+	return requestedAndAvailableStreams;
 }
 
 void MainWindow::startRecording() {
 	if (!currentRecording) {
 
 		// automatically refresh streams
-		const std::vector<lsl::stream_info> resolvedStreams = refreshStreams();
-		const QSet<QString> checked = getCheckedStreams();
+		const std::vector<lsl::stream_info> requestedAndAvailableStreams = refreshStreams();
 
 		if (!hideWarnings) {
 			// if a checked stream is now missing
-			// change to "checked.intersects(missingStreams) as soon as Ubuntu 16.04/Qt 5.5 is EOL
-			QSet<QString> missing = checked;
-			if (!missing.intersect(missingStreams).isEmpty()) {
+			if (!missingStreams.isEmpty()) {
 				// are you sure?
 				QMessageBox msgBox(QMessageBox::Warning, "Stream not found",
 					"At least one of the streams that you checked seems to be offline",
@@ -316,8 +368,8 @@ void MainWindow::startRecording() {
 				if (msgBox.exec() != QMessageBox::Yes) return;
 			}
 
-			if (checked.isEmpty()) {
-				QMessageBox msgBox(QMessageBox::Warning, "No streams selected",
+			if (requestedAndAvailableStreams.size() == 0) {
+				QMessageBox msgBox(QMessageBox::Warning, "No available streams selected",
 					"You have selected no streams", QMessageBox::Yes | QMessageBox::No, this);
 				msgBox.setInformativeText("Do you want to start recording anyway?");
 				msgBox.setDefaultButton(QMessageBox::No);
@@ -363,20 +415,24 @@ void MainWindow::startRecording() {
 			return;
 		}
 
-		// go through all the listed streams
-		std::vector<lsl::stream_info> checkedStreams;
-
-		for (const lsl::stream_info &stream : resolvedStreams)
-			if (checked.contains(
-					QString::fromStdString(stream.name() + " (" + stream.hostname() + ')')))
-				checkedStreams.push_back(stream);
-
+		
 		std::vector<std::string> watchfor;
-		for (const QString &missing : missingStreams) watchfor.push_back(missing.toStdString());
+		for (const QString &missing : missingStreams) {
+			// TODO: Convert missing to query expected by lsl::resolve_stream
+			// name='BioSemi' and hostname=AASDFSDF
+			// QRegularExpression rx("(\S+)\s+\((\S+)\)");
+			QStringList name_host = missing.split(QRegExp("\\s+"));
+			std::string query = "name='" + name_host[0].toStdString() + "'";
+			if (name_host.size() > 1) {
+				std::string host = name_host[1].toStdString();
+				query += " and hostname='" + host.substr(1, host.length() - 2) + "'";
+			}
+			watchfor.push_back(query);
+		}
 		qInfo() << "Missing: " << missingStreams;
 
-		currentRecording = std::make_unique<recording>(
-			recFilename.toStdString(), checkedStreams, watchfor, syncOptionsByStreamName, true);
+		currentRecording = std::make_unique<recording>(recFilename.toStdString(),
+			requestedAndAvailableStreams, watchfor, syncOptionsByStreamName, true);
 		ui->stopButton->setEnabled(true);
 		ui->startButton->setEnabled(false);
 		startTime = (int)lsl::local_clock();
