@@ -163,14 +163,12 @@ void MainWindow::load_config(QString filename) {
 		// StorageLocation
 		QString studyRoot;
 		legacyTemplate.clear();
-		// StudyRoot
-		if (pt.contains("StudyRoot")) { studyRoot = pt.value("StudyRoot").toString(); }
-
+		
 		if (pt.contains("StorageLocation")) {
-			if (!studyRoot.isEmpty())
-				throw std::runtime_error("Both StudyRoot and StorageLocation specified");
+			if (pt.contains("StudyRoot"))
+				throw std::runtime_error("StorageLocation cannot be used if StudyRoot is also specified.");
 			if (pt.contains("PathTemplate"))
-				throw std::runtime_error("Both StorageLocation and PathTemplate specified");
+				throw std::runtime_error("StorageLocation cannot be used if PathTemplate is also specified.");
 
 			QString str_path = pt.value("StorageLocation").toString();
 			QString path_root;
@@ -181,16 +179,18 @@ void MainWindow::load_config(QString filename) {
 				// foo/bar/baz%a/untitled.xdf gets split into
 				// foo/bar and baz%a/untitled.xdf
 				path_root = str_path.left(index);
-			} else
+			} else {
 				// Otherwise, it's split into folder and constant filename
 				path_root = str_path;
-			path_root = QFileInfo(path_root).path();
-			legacyTemplate = str_path.remove(0, path_root.length() + 1);
-			// absolute path, nothing to be done
+			}
 			studyRoot = QFileInfo(path_root).absolutePath();
-			ui->lineEdit_template->setText(QDir::toNativeSeparators(legacyTemplate));
+			legacyTemplate = str_path.remove(0, studyRoot.length() + 1);
+			// absolute path, nothing to be done
+			// studyRoot = QFileInfo(path_root).absolutePath();
 		}
-		if (pt.contains("PathTemplate")) legacyTemplate = pt.value("PathTemplate").toString();
+		// StudyRoot
+		if (pt.contains("StudyRoot")) { studyRoot = pt.value("StudyRoot").toString(); }
+		if (pt.contains("PathTemplate")) { legacyTemplate = pt.value("PathTemplate").toString(); }
 
 		if (studyRoot.isEmpty())
 			studyRoot = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) +
@@ -199,7 +199,7 @@ void MainWindow::load_config(QString filename) {
 
 		if (legacyTemplate.isEmpty()) {
 			ui->check_bids->setChecked(true);
-			// Legacy takes the form path/to/study/exp%n/%b.xdf
+			// Use default, exp%n/%b.xdf , only to be used if BIDS gets unchecked.
 			legacyTemplate = "exp%n/block_%b.xdf";
 		} else {
 			ui->check_bids->setChecked(false);
@@ -211,20 +211,20 @@ void MainWindow::load_config(QString filename) {
 			ui->input_modality->count(), pt.value("BidsModalities", bids_modalities_default).toStringList());
 		ui->input_modality->setCurrentIndex(0);
 
-        buildFilename();
+		buildFilename();
 
 		// Remote Control Socket options
 		if (pt.contains("RCSPort")) {
-            int rcs_port = pt.value("RCSPort").toInt();
+			int rcs_port = pt.value("RCSPort").toInt();
 			ui->rcsport->setValue(rcs_port);
-            // In case it's already running (how?), stop the RCS listener.
+			// In case it's already running (how?), stop the RCS listener.
 			ui->rcsCheckBox->setChecked(false);
-        }
-        
-        if (pt.contains("RCSEnabled")) {
-            bool b_enable_rcs = pt.value("RCSEnabled").toBool();
+		}
+
+		if (pt.contains("RCSEnabled")) {
+			bool b_enable_rcs = pt.value("RCSEnabled").toBool();
 			ui->rcsCheckBox->setChecked(b_enable_rcs);
-        }
+		}
 
 		// Check the wild-card-replaced filename to see if it exists already.
 		// If it does then increment the exp number.
@@ -445,7 +445,7 @@ void MainWindow::buildFilename() {
 	// This function is only called when a widget within Location Builder is activated.
 
 	// Build the file location in parts, starting with the root folder.
-	if (ui->check_bids->isChecked()) buildBidsTemplate();
+	if (ui->check_bids->isChecked()) { buildBidsTemplate(); }
 	QString tpl = QDir::cleanPath(ui->lineEdit_template->text());
 
 	// Auto-increment Spin/Run Number if necessary.
