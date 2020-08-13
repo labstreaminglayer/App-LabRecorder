@@ -132,25 +132,32 @@ void MainWindow::load_config(QString filename) {
 		// online sync streams
 		// ----------------------------
 		QStringList onlineSyncStreams = pt.value("OnlineSync", QStringList()).toStringList();
-		for (QString &oss : onlineSyncStreams) {
-			QStringList words = oss.split(' ', QString::SkipEmptyParts);  // Deprecated --> Qt::SkipEmptyParts as of Qt 5.14, but not easily available to Ubuntu 18.04
-			// The first two words ("StreamName (PC)") are the stream identifier
-			if (words.length() < 2) {
-				qInfo() << "Invalid sync stream config: " << oss;
-				continue;
-			}
-			QString key = words.takeFirst() + ' ' + words.takeFirst();
 
-			int val = 0;
-			for (const auto &word : words) {
-				if (word == "post_clocksync") { val |= lsl::post_clocksync; }
-				if (word == "post_dejitter") { val |= lsl::post_dejitter; }
-				if (word == "post_monotonize") { val |= lsl::post_monotonize; }
-				if (word == "post_threadsafe") { val |= lsl::post_threadsafe; }
-				if (word == "post_ALL") { val = lsl::post_ALL; }
+		for (QString &oss : onlineSyncStreams) {
+			QStringList entries = oss.split(',', QString::SkipEmptyParts);
+			for (const auto &entry : entries) {
+				QStringList words = entry.split(' ', QString::SkipEmptyParts);
+				// The first two words ("StreamName (PC)") are the stream identifier
+				if (words.length() < 2) {
+					qInfo() << "Invalid sync stream config: " << oss;
+					continue;
+				}
+
+				QString first = words.takeFirst();
+				QString second = words.takeFirst();
+				QString key = first + ' ' + second;
+
+				int val = 0;
+				for (const auto &word : words) {
+					if (word == "post_clocksync") { val |= lsl::post_clocksync; }
+					if (word == "post_dejitter") { val |= lsl::post_dejitter; }
+					if (word == "post_monotonize") { val |= lsl::post_monotonize; }
+					if (word == "post_threadsafe") { val |= lsl::post_threadsafe; }
+					if (word == "post_ALL") { val = lsl::post_ALL; }
+				}
+				syncOptionsByStreamName[key.toStdString()] = val;
+				qInfo() << "stream sync options: " << key << ": " << val;
 			}
-			syncOptionsByStreamName[key.toStdString()] = val;
-			qInfo() << "stream sync options: " << key << ": " << val;
 		}
 
 		// ----------------------------
