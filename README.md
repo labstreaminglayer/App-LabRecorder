@@ -14,14 +14,19 @@ The file format used by the LabRecorder is XDF. This is an open general-purpose 
 # Getting LabRecorder
 
 Navigate to the [`releases` page](https://github.com/labstreaminglayer/App-LabRecorder/releases) and download the latest release for your platform.
+The Ubuntu releases do not typically ship with the libsl dependencies so you will also have to download and install [liblsl from its release page](https://github.com/sccn/liblsl/releases).
 
 # Usage
 
 The LabRecorder displays a list of currently present device streams under "Record from Streams". If you have turned on a device after you have already started the recorder, click the "Update" button to update the list (this takes ca. 2 seconds).
 > For testing you can use a "dummy" device from the `lslexamples` found in the [liblsl release assets](https://github.com/sccn/liblsl/releases) (for example SendData<!--, SendStringMarkers, and SendDataSimple-->).
 
-If you cannot see streams that are provided on another computer, read the section Network Troubleshooting on the NetworkConnectivity page. You can select which streams you want to record from and which not by checking the check boxes next to them.
+If you cannot see streams that are provided on another computer, read the section Network Troubleshooting on the NetworkConnectivity page.
+
+You can select which streams you want to record from and which not by checking the check boxes next to them.
 > ![labrecorder-default.png](doc/labrecorder-default.png)
+
+Note that if you have multiple streams with the same name and host, it is impossible to check only 1. If any is checked then they will all be recorded.
 
 The entry in "Saving to..." shows you the file name (or file name template) where your recording will be stored. You can change this by modifying the Study Root folder (e.g., by clicking the browse button) and the `File Name / Template` field. If the respective directory does not yet exist, it will be created automatically (except if you do not have the permissions to create it). The file name string may contain placeholders that will be replaced by the values in the fields below. Checking the BIDS box will automatically change the filename template to be BIDS compliant. If the file that you are trying to record to already exists, the existing file will be renamed (the string `_oldX` will be appended where X is the lowest number that is not yet occupied by another existing file). This way, it is impossible to accidentally overwrite data.
 

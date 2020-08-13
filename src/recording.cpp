@@ -133,10 +133,12 @@ void recording::record_from_query_results(const std::string &query) {
 			// for each result...
 			for (auto &result : results) {
 				// if it is a new stream...
+				std::string _uid = result.uid();
+				std::string _src_id = result.source_id();
 				if (!known_uids.count(result.uid()))
 					// and doesn't have a previously seen source id...
-					if (!(!result.source_id().empty() &&
-							(!known_source_ids.count(result.source_id())))) {
+					if (!result.source_id().empty() &&
+							(!known_source_ids.count(result.source_id()))) {
 						std::cout << "Found a new stream named " << result.name()
 								  << ", adding it to the recording." << std::endl;
 						// start a new recording thread

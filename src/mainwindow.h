@@ -18,11 +18,19 @@ class MainWindow;
 class recording;
 class RemoteControlSocket;
 
-class RecorderItem {
-
+class StreamItem {
+	
 public:
-	QListWidgetItem listItem;
-	std::string uid;
+	StreamItem(std::string stream_name, std::string stream_type, std::string source_id,
+		std::string hostname, bool required)
+		: name(stream_name), type(stream_type), id(source_id), host(hostname), checked(required) {}
+	
+	QString listName() { return QString::fromStdString(name + " (" + host + ")"); }
+	std::string name;
+	std::string type;
+	std::string id;
+	std::string host;
+	bool checked;
 };
 
 
@@ -52,7 +60,6 @@ private slots:
 	void rcsportValueChangedInt(int value);
 
 private:
-	QSet<QString> getCheckedStreams() const;
 	QString replaceFilename(QString fullfile) const;
 	// function for loading / saving the config file
 	QString find_config_file(const char *filename);
@@ -66,9 +73,9 @@ private:
 	int startTime;
 	std::unique_ptr<QTimer> timer;
 
-	QStringList requiredStreams;
-	std::map<std::string, int> syncOptionsByStreamName;
+	QList<StreamItem> knownStreams;
 	QSet<QString> missingStreams;
+	std::map<std::string, int> syncOptionsByStreamName;
 
 	// QString recFilename;
 	QString legacyTemplate;
