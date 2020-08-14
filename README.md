@@ -14,6 +14,7 @@ The file format used by the LabRecorder is XDF. This is an open general-purpose 
 # Getting LabRecorder
 
 Navigate to the [`releases` page](https://github.com/labstreaminglayer/App-LabRecorder/releases) and download the latest release for your platform.
+The Ubuntu releases do not typically ship with the libsl dependencies so you will also have to download and install [liblsl from its release page](https://github.com/sccn/liblsl/releases).
 
 # Usage
 
