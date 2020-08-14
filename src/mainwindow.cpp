@@ -132,7 +132,7 @@ void MainWindow::load_config(QString filename) {
 		// ----------------------------
 		QStringList onlineSyncStreams = pt.value("OnlineSync", QStringList()).toStringList();
 		for (QString &oss : onlineSyncStreams) {
-			QStringList words = oss.split(' ', QString::SkipEmptyParts);
+			QStringList words = oss.split(' ', QString::SkipEmptyParts);  // Deprecated --> Qt::SkipEmptyParts as of Qt 5.14, but not easily available to Ubuntu 18.04
 			// The first two words ("StreamName (PC)") are the stream identifier
 			if (words.length() < 2) {
 				qInfo() << "Invalid sync stream config: " << oss;
@@ -277,6 +277,7 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 
 	const QSet<QString> previouslyChecked = getCheckedStreams();
 	// Missing streams: all checked or required streams that weren't found
+	// requiredStreams.toSet() is deprecated. Eventually change to: QSet<QString>(requiredStreams.begin(), requiredStreams.end())
 	missingStreams = (previouslyChecked + requiredStreams.toSet()) - foundStreamNames;
 
 	// (Re-)Populate the UI list

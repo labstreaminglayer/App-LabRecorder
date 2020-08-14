@@ -1,5 +1,9 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include "xdfwriter.h"
 #include <iostream>
+#include <iomanip>
+#include <chrono>
+#include <ctime>
 
 void write_timestamp(std::ostream &out, double ts) {
 	// [TimeStampBytes] (0 for no time stamp)
@@ -27,8 +31,13 @@ XDFWriter::XDFWriter(const std::string &filename)
 	// [MagicCode]
 	file_ << "XDF:";
 	// [FileHeader] chunk
-	_write_chunk(
-		chunk_tag_t::fileheader, "<?xml version=\"1.0\"?><info><version>1.0</version></info>");
+	std::stringstream header;
+	header << "<?xml version=\"1.0\"?>\n  <info>\n    <version>1.0</version>";
+	// datetime
+	std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	header << "\n    <datetime>" << std::put_time(std::localtime(&now), "%FT%T%z") << "</datetime>";
+	header << "\n  </info>";
+	_write_chunk(chunk_tag_t::fileheader, header.str());
 }
 
 void XDFWriter::_write_chunk(
