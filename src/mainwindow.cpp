@@ -418,7 +418,7 @@ void MainWindow::startRecording() {
 		
 		std::vector<std::string> watchfor;
 		for (const QString &missing : missingStreams) {
-			// TODO: Convert missing to query expected by lsl::resolve_stream
+			// Convert missing to query expected by lsl::resolve_stream
 			// name='BioSemi' and hostname=AASDFSDF
 			// QRegularExpression rx("(\S+)\s+\((\S+)\)");
 			QStringList name_host = missing.split(QRegExp("\\s+"));
