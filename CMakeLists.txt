@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 
 project(LabRecorder
+	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
+	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
 	LANGUAGES CXX
 	VERSION 1.13.1)
 
@@ -137,4 +139,5 @@ if (WIN32)
 			$<TARGET_FILE_DIR:${PROJECT_NAME}>)
 endif(WIN32)
 
+set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
