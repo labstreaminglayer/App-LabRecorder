@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 
 project(LabRecorder
-	LANGUAGES CXX
-	VERSION 1.13.1)
+	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
+	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
+	LANGUAGES C CXX
+	VERSION 1.14.0)
 
 find_package(LSL REQUIRED
 	HINTS ${LSL_INSTALL_ROOT}
@@ -114,7 +116,9 @@ installLSLApp(${PROJECT_NAME})
 installLSLApp(LabRecorderCLI)
 installLSLApp(testxdfwriter)
 installLSLAuxFiles(${PROJECT_NAME}
-	${PROJECT_NAME}.cfg LICENSE README.md
+	${PROJECT_NAME}.cfg
+	LICENSE
+	README.md
 )
 
 if (WIN32)
@@ -137,4 +141,5 @@ if (WIN32)
 			$<TARGET_FILE_DIR:${PROJECT_NAME}>)
 endif(WIN32)
 
+set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()

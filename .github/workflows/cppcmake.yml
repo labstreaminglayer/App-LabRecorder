@@ -7,99 +7,94 @@ on:
   pull_request:
     branches:
     - master
+  release:
+    types: ['created']
 
 env:
-  LSL_URL: 'https://github.com/sccn/liblsl/releases/download'
-  LSL_RELEASE_PREFIX: ''
-  LSL_RELEASE: '1.13.1'
+  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.14.0rc1'
+  LSL_RELEASE: '1.14.0'
+
+defaults:
+  run:
+    shell: bash
 
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
     strategy:
-      matrix:
-        os:
-        - ubuntu-latest
-        - windows-latest
-        - macOS-latest
       fail-fast: false
-
+      matrix:
+        config:
+        - {name: "ubuntu-20.04", os: "ubuntu-20.04"}
+#        - {name: "ubuntu-18.04", os: "ubuntu-18.04"}
+        - {name: "ubuntu-16.04", os: "ubuntu-16.04"}
+        - {name: "windows-x64",  os: "windows-latest"}
+        - {name: "macOS-latest", os: "macOS-latest"}
     steps:
     - uses: actions/checkout@v2
-
-    - name: CMake version
-      run: cmake --version
-
-    - name: Install Qt (Windows)
-      if: matrix.os == 'windows-latest'
-      uses: jurplel/install-qt-action@v2
-      with:
-        version: 5.14.0
-
-    - name: Get liblsl (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: download liblsl (Ubuntu)
+      if: startsWith(matrix.config.os, 'ubuntu-')
       run: |
-           Invoke-WebRequest -Uri $Env:LSL_URL/$Env:LSL_RELEASE_PREFIX$Env:LSL_RELEASE/liblsl-$Env:LSL_RELEASE-Win64.zip -o liblsl.7z
-           7z x liblsl.7z -oLSL
-    - name: Get liblsl and Qt (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-           echo ${{ github.ref }}
-           curl -L ${LSL_URL}/${LSL_RELEASE_PREFIX}${LSL_RELEASE}/liblsl-${LSL_RELEASE}-Linux64-bionic.deb -o liblsl.deb
+           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
            sudo dpkg -i liblsl.deb
-           sudo apt install -y qtbase5-dev
+           sudo apt-get install -y qtbase5-dev
 
-    - name: Get liblsl and Qt (macOS)
-      if: matrix.os == 'macOS-latest'
-      # curl -L ${LSL_URL}/${LSL_RELEASE_PREFIX}${LSL_RELEASE}/liblsl-${LSL_RELEASE}-MacOS10.13.tar.bz2 -o liblsl.tar.bz2
+    - name: download liblsl (Windows)
+      if: matrix.config.os == 'windows-latest'
       run: |
-           curl -L ${LSL_URL}/v1.14.0b3/liblsl-1.14.0-MacOS10.13.tar.bz2 -o liblsl.tar.bz2
+           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-Win_amd64.zip -o liblsl.zip
+           7z x liblsl.zip -oLSL
+
+    - name: download liblsl (macOS)
+      if: matrix.config.os == 'macOS-latest'
+      run: |
+           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-OSX_amd64.tar.bz2 -o liblsl.tar.bz2
            mkdir LSL
            tar -xvf liblsl.tar.bz2 -C LSL
            brew install qt
-           echo '::set-env name=CMAKE_PREFIX_PATH::/usr/local/opt/qt'
+
+    - name: Install Qt
+      if: matrix.config.os == 'windows-latest'
+      uses: jurplel/install-qt-action@v2
+      with:
+        version: 5.15.1
 
     - name: Configure CMake
-      shell: bash
       run: |
-           cmake -S . -B build -DLSL_INSTALL_ROOT=$PWD/LSL/ -DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON -DCPACK_DEBIAN_PACKAGE_DEPENDS=1
+           cmake --version
+           test "${{ runner.os }}" == "macOS" && export CMAKE_PREFIX_PATH=/usr/local/opt/qt
+           cmake -S . -B build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=${PWD}/install \
+                -DCPACK_PACKAGE_DIRECTORY=${PWD}/package \
+                -DLSL_INSTALL_ROOT=$PWD/LSL/ \
+                -DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON \
+                -DCPACK_DEBIAN_PACKAGE_DEPENDS=1
 
-    - name: Make & Install
+    - name: make
       run: cmake --build build --config Release -j --target install
 
-    - name: Package
-      run: cmake --build build --config Release -j --target package
+    - name: package
+      run: |
+           cmake --build build --config Release -j --target package
+           cmake -E remove_directory package/_CPack_Packages
       
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v2-preview
+      uses: actions/upload-artifact@v2
       with:
-        name: pkg-${{ matrix.os }}
-        path: build/*.[dbz][ezi][b2p]  # Hack to get deb, bz2, zip. Will also get e.g. de2, dep, dzb, dz2, dzp, etc...
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-    
-    - name: Download Artifacts
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: actions/download-artifact@v2-preview
-      # By not specifying with: name:, it defaults to downloading all artifacts.
-
-    # Official GitHub Upload-Asset action does not allow for uploading multiple files.
-    # There are many community alternatives. Below is one that combines release and upload, with globbing.
-    # See also: svenstaro/upload-release-action shogo82148/actions-upload-release-asset meeDamian/github-release csexton/release-asset-action
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/')
-      id: create_release
-      uses: softprops/action-gh-release@v1
+        name: pkg-${{ matrix.config.name }}
+        path: package
+    - name: upload to release page
+      if: github.event_name == 'release'
       env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        # tag_name: ${{ github.ref }}  # ${{ github.ref }} is default
-        name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-        # body_path: CHANGELOG.txt
-        files: pkg-*/*
+        TOKEN: "token ${{ secrets.GITHUB_TOKEN }}"
+        UPLOAD_URL: ${{ github.event.release.upload_url }}
+      run: |
+              UPLOAD_URL=${UPLOAD_URL%\{*} # remove "{name,label}" suffix
+              for pkg in package/*.*; do
+                NAME=$(basename $pkg)
+                MIME=$(file --mime-type $pkg|cut -d ' ' -f2)
+                curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: $TOKEN" -H "Content-Type: $MIME" --data-binary @$pkg $UPLOAD_URL?name=$NAME
+              done
