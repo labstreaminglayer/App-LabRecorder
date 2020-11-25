@@ -11,7 +11,7 @@ on:
     types: ['created']
 
 env:
-  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.14.0rc1'
+  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.14.0'
   LSL_RELEASE: '1.14.0'
 
 defaults:
@@ -28,7 +28,7 @@ jobs:
       matrix:
         config:
         - {name: "ubuntu-20.04", os: "ubuntu-20.04"}
-#        - {name: "ubuntu-18.04", os: "ubuntu-18.04"}  # Awaiting liblsl deploy fix.
+        - {name: "ubuntu-18.04", os: "ubuntu-18.04"}
 #        - {name: "ubuntu-16.04", os: "ubuntu-16.04"}  # Awaiting https://github.com/miurahr/aqtinstall/issues/183
         - {name: "windows-x64",  os: "windows-latest"}
         - {name: "macOS-latest", os: "macOS-latest"}
