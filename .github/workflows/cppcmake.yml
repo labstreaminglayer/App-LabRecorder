@@ -27,25 +27,25 @@ jobs:
       fail-fast: false
       matrix:
         config:
-        - {name: "ubuntu-20.04", os: "ubuntu-20.04", qtver: 5.15.2}
-#        - {name: "ubuntu-18.04", os: "ubuntu-18.04", qtver: 5.15.2}  # Awaiting liblsl deploy fix.
-        - {name: "ubuntu-16.04", os: "ubuntu-16.04", qtver: 5.12.10}
-        - {name: "windows-x64",  os: "windows-latest", qtver: "specified below"}
-        - {name: "macOS-latest", os: "macOS-latest", qtver: "not used"}
+        - {name: "ubuntu-20.04", os: "ubuntu-20.04"}
+#        - {name: "ubuntu-18.04", os: "ubuntu-18.04"}  # Awaiting liblsl deploy fix.
+#        - {name: "ubuntu-16.04", os: "ubuntu-16.04"}  # Awaiting https://github.com/miurahr/aqtinstall/issues/183
+        - {name: "windows-x64",  os: "windows-latest"}
+        - {name: "macOS-latest", os: "macOS-latest"}
     steps:
     - uses: actions/checkout@v2
-    - name: Install liblsl and Qt (Ubuntu)
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v2
+      with:
+        aqtversion: '>=0.9.8'
+        py7zrversion: '>=0.11'
+
+    - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
       run: |
            curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
            sudo dpkg -i liblsl.deb
-           sudo apt install mesa-common-dev libglu1-mesa-dev
-           wget https://code.qt.io/cgit/qbs/qbs.git/plain/scripts/install-qt.sh
-           sudo chmod +x install-qt.sh
-           sudo ./install-qt.sh --version ${{ matrix.config.qtver }} qtbase icu
-           sudo ldconfig /opt/Qt/${{ matrix.config.qtver }}/gcc_64/lib
-           # use with -DQt5_DIR=/opt/Qt/${{ matrix.config.qtver }}/gcc_64/lib/cmake/Qt5
-           # or -DCMAKE_PREFIX_PATH=/opt/Qt/${{ matrix.config.qtver }}/gcc_64
 
     - name: Download liblsl (Windows)
       if: matrix.config.os == 'windows-latest'
@@ -53,29 +53,16 @@ jobs:
            curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-Win_amd64.zip -o liblsl.zip
            7z x liblsl.zip -oLSL
 
-    - name: Install liblsl and Qt (macOS)
+    - name: Download liblsl (macOS)
       if: matrix.config.os == 'macOS-latest'
       run: |
            curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-OSX_amd64.tar.bz2 -o liblsl.tar.bz2
            mkdir LSL
            tar -xvf liblsl.tar.bz2 -C LSL
-           brew install qt
-
-    - name: Install Qt (Windows)
-      if: matrix.config.os == 'windows-latest'
-      uses: jurplel/install-qt-action@v2
-      with:
-        version: 5.15.2
 
     - name: Configure CMake
       run: |
            cmake --version
-           if [ "$RUNNER_OS" == "macOS" ]; then
-                   export CMAKE_PREFIX_PATH=/usr/local/opt/qt
-           elif [ "$RUNNER_OS" == "Linux" ]; then
-                   export CMAKE_PREFIX_PATH=/opt/Qt/${{ matrix.config.qtver }}/gcc_64
-           fi
-           echo $CMAKE_PREFIX_PATH
            cmake -S . -B build \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_INSTALL_PREFIX=${PWD}/install \
@@ -89,6 +76,7 @@ jobs:
 
     - name: package
       run: |
+           export LD_LIBRARY_PATH=$Qt5_Dir/lib:$LD_LIBRARY_PATH
            cmake --build build --config Release -j --target package
            cmake -E remove_directory package/_CPack_Packages
       
@@ -97,6 +85,7 @@ jobs:
       with:
         name: pkg-${{ matrix.config.name }}
         path: package
+
     - name: upload to release page
       if: github.event_name == 'release'
       env:
