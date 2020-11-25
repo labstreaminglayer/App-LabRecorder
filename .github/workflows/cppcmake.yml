@@ -29,17 +29,19 @@ jobs:
         config:
         - {name: "ubuntu-20.04", os: "ubuntu-20.04"}
         - {name: "ubuntu-18.04", os: "ubuntu-18.04"}
-#        - {name: "ubuntu-16.04", os: "ubuntu-16.04"}  # Awaiting https://github.com/miurahr/aqtinstall/issues/183
+        - {name: "ubuntu-16.04", os: "ubuntu-16.04"}
         - {name: "windows-x64",  os: "windows-latest"}
         - {name: "macOS-latest", os: "macOS-latest"}
     steps:
     - uses: actions/checkout@v2
 
+    - name: Install importlib-metadata (Ubuntu-16.05)
+      if: matrix.config.os == 'ubuntu-16.04'
+      run: |
+           pip3 install importlib-metadata==2.1.0
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v2
-      with:
-        aqtversion: '>=0.9.8'
-        py7zrversion: '>=0.11'
 
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
