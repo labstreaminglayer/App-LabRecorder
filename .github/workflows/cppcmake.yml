@@ -29,17 +29,28 @@ jobs:
         config:
         - {name: "ubuntu-20.04", os: "ubuntu-20.04"}
         - {name: "ubuntu-18.04", os: "ubuntu-18.04"}
-#        - {name: "ubuntu-16.04", os: "ubuntu-16.04"}  # Awaiting https://github.com/miurahr/aqtinstall/issues/183
+        - {name: "ubuntu-16.04", os: "ubuntu-16.04"}
         - {name: "windows-x64",  os: "windows-latest"}
         - {name: "macOS-latest", os: "macOS-latest"}
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install Qt
+    # Some install-qt workarounds until upstream resolves issue https://github.com/jurplel/install-qt-action/issues/65
+    - name: Update pip (Ubuntu-16.05)
+      if: matrix.config.os == 'ubuntu-16.04'
+      run: |
+           pip3 install --upgrade pip
+
+    - name: Install Qt (Ubuntu 16.04)
+      if: startsWith(matrix.config.os, 'ubuntu-16.04')
       uses: jurplel/install-qt-action@v2
       with:
-        aqtversion: '>=0.9.8'
-        py7zrversion: '>=0.11'
+        aqtversion: '==0.9.5'
+        py7zrversion: '==0.10.1'
+        
+    - name: Install Qt (others)
+      if: startsWith(matrix.config.os, 'ubuntu-16.04') != true
+      uses: jurplel/install-qt-action@v2
 
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
