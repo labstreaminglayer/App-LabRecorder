@@ -35,10 +35,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install importlib-metadata (Ubuntu-16.05)
+    - name: Update pip (Ubuntu-16.05)
       if: matrix.config.os == 'ubuntu-16.04'
       run: |
-           pip3 install importlib-metadata==2.0.0
+           pip3 install --upgrade pip
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v2
