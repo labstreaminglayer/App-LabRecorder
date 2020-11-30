@@ -35,6 +35,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    # Some install-qt workarounds until upstream resolves issue https://github.com/jurplel/install-qt-action/issues/65
     - name: Update pip (Ubuntu-16.05)
       if: matrix.config.os == 'ubuntu-16.04'
       run: |
