@@ -35,22 +35,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    # Some install-qt workarounds until upstream resolves issue https://github.com/jurplel/install-qt-action/issues/65
-    - name: Update pip (Ubuntu-16.05)
-      if: matrix.config.os == 'ubuntu-16.04'
-      run: |
-           pip3 install --upgrade pip
-
-    - name: Install Qt (Ubuntu 16.04)
-      if: startsWith(matrix.config.os, 'ubuntu-16.04')
-      uses: jurplel/install-qt-action@v2
-      with:
-        aqtversion: '==0.9.5'
-        py7zrversion: '==0.10.1'
-        
-    - name: Install Qt (others)
-      if: startsWith(matrix.config.os, 'ubuntu-16.04') != true
-      uses: jurplel/install-qt-action@v2
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v2.11.0
 
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
