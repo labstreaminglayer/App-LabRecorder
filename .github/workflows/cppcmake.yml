@@ -29,7 +29,6 @@ jobs:
         config:
         - {name: "ubuntu-20.04", os: "ubuntu-20.04"}
         - {name: "ubuntu-18.04", os: "ubuntu-18.04"}
-        - {name: "ubuntu-16.04", os: "ubuntu-16.04"}
         - name: "windows-x64"
           os: "windows-latest"
           cmake_extra: "-T v142,host=x86"
@@ -43,11 +42,6 @@ jobs:
         - {name: "macOS-latest", os: "macOS-latest"}
     steps:
     - uses: actions/checkout@v2
-
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v2.11.0
-      with:
-         arch: ${{ matrix.config.qt }}
 
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
@@ -67,6 +61,16 @@ jobs:
            curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-OSX_amd64.tar.bz2 -o liblsl.tar.bz2
            mkdir LSL
            tar -xvf liblsl.tar.bz2 -C LSL
+
+    - name: Install Qt
+      if: startsWith(matrix.config.os, 'windows') || startsWith(matrix.config.os, 'macOS')
+      uses: jurplel/install-qt-action@v2.12.2
+      with:
+         arch: ${{ matrix.config.qt }}
+
+    - name: Install Qt .deb packages
+      if: startsWith(matrix.config.os, 'ubuntu-')
+      run: sudo apt install -y qtbase5-dev
 
     - name: Configure CMake
       run: |
@@ -88,7 +92,7 @@ jobs:
            export LD_LIBRARY_PATH=$Qt5_Dir/lib:$LD_LIBRARY_PATH
            cmake --build build --config Release -j --target package
            cmake -E remove_directory package/_CPack_Packages
-      
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       with:
