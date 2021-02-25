@@ -32,14 +32,14 @@ jobs:
         - {name: "ubuntu-16.04", os: "ubuntu-16.04"}
         - name: "windows-x64"
           os: "windows-latest"
-          cmake_extra: "-T v141,host=x86"
+          cmake_extra: "-T v142,host=x86"
           arch: "amd64"
-          qt: "win64_msvc2017_64"
+          qt: "win64_msvc2019_64"
         - name: "windows-x86"
           os: "windows-latest"
-          cmake_extra: "-T v140,host=x86 -A Win32"
+          cmake_extra: "-T v142,host=x86 -A Win32"
           arch: "i386"
-          qt: "win32_msvc2015"
+          qt: "win32_msvc2019"
         - {name: "macOS-latest", os: "macOS-latest"}
     steps:
     - uses: actions/checkout@v2
