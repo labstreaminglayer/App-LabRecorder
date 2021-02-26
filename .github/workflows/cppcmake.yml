@@ -30,13 +30,24 @@ jobs:
         - {name: "ubuntu-20.04", os: "ubuntu-20.04"}
         - {name: "ubuntu-18.04", os: "ubuntu-18.04"}
         - {name: "ubuntu-16.04", os: "ubuntu-16.04"}
-        - {name: "windows-x64",  os: "windows-latest"}
+        - name: "windows-x64"
+          os: "windows-latest"
+          cmake_extra: "-T v142,host=x86"
+          arch: "amd64"
+          qt: "win64_msvc2019_64"
+        - name: "windows-x86"
+          os: "windows-latest"
+          cmake_extra: "-T v142,host=x86 -A Win32"
+          arch: "i386"
+          qt: "win32_msvc2019"
         - {name: "macOS-latest", os: "macOS-latest"}
     steps:
     - uses: actions/checkout@v2
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v2.11.0
+      with:
+         arch: ${{ matrix.config.qt }}
 
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
@@ -47,7 +58,7 @@ jobs:
     - name: Download liblsl (Windows)
       if: matrix.config.os == 'windows-latest'
       run: |
-           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-Win_amd64.zip -o liblsl.zip
+           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-Win_${{ matrix.config.arch}}.zip -o liblsl.zip
            7z x liblsl.zip -oLSL
 
     - name: Download liblsl (macOS)
@@ -66,7 +77,8 @@ jobs:
                 -DCPACK_PACKAGE_DIRECTORY=${PWD}/package \
                 -DLSL_INSTALL_ROOT=$PWD/LSL/ \
                 -DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON \
-                -DCPACK_DEBIAN_PACKAGE_DEPENDS=1
+                -DCPACK_DEBIAN_PACKAGE_DEPENDS=1 \
+                ${{ matrix.config.cmake_extra }}
 
     - name: make
       run: cmake --build build --config Release -j --target install
