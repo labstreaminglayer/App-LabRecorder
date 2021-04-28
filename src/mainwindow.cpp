@@ -20,11 +20,11 @@ const QStringList bids_modalities_default = QStringList({"eeg", "ieeg", "meg", "
 MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	: QMainWindow(parent), ui(new Ui::MainWindow) {
 	ui->setupUi(this);
-	connect(ui->actionLoad_Configuration, &QAction::triggered, [this]() {
+	connect(ui->actionLoad_Configuration, &QAction::triggered, this, [this]() {
 		load_config(QFileDialog::getOpenFileName(
 			this, "Load Configuration File", "", "Configuration Files (*.cfg)"));
 	});
-	connect(ui->actionSave_Configuration, &QAction::triggered, [this]() {
+	connect(ui->actionSave_Configuration, &QAction::triggered, this, [this]() {
 		save_config(QFileDialog::getSaveFileName(
 			this, "Save Configuration File", "", "Configuration Files (*.cfg)"));
 	});
@@ -36,7 +36,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->selectNoneButton, &QPushButton::clicked, this, &MainWindow::selectNoStreams);
 	connect(ui->startButton, &QPushButton::clicked, this, &MainWindow::startRecording);
 	connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::stopRecording);
-	connect(ui->actionAbout, &QAction::triggered, [this]() {
+	connect(ui->actionAbout, &QAction::triggered, this, [this]() {
 		QString infostr = QStringLiteral("LSL library version: ") +
 						  QString::number(lsl::library_version()) +
 						  "\nLSL library info:" + lsl::library_info();
@@ -54,7 +54,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->spin_counter, spinchanged, this, &MainWindow::printReplacedFilename);
 
 	// Signals for builder-related edits -> buildFilename
-	connect(ui->rootBrowseButton, &QPushButton::clicked, [this]() {
+	connect(ui->rootBrowseButton, &QPushButton::clicked, this, [this]() {
 		this->ui->rootEdit->setText(QDir::toNativeSeparators(
 			QFileDialog::getExistingDirectory(this, "Study root folder...")));
 		this->buildFilename();
@@ -66,7 +66,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->lineEdit_acq, &QLineEdit::editingFinished, this, &MainWindow::buildFilename);
 	connect(ui->input_blocktask, &QComboBox::currentTextChanged, this, &MainWindow::buildFilename);
 	connect(ui->input_modality, &QComboBox::currentTextChanged, this, &MainWindow::buildFilename);
-	connect(ui->check_bids, &QCheckBox::toggled, [this](bool checked) {
+	connect(ui->check_bids, &QCheckBox::toggled, this, [this](bool checked) {
 		auto &box = *ui->lineEdit_template;
 		box.setReadOnly(checked);
 		if (checked) {
@@ -142,7 +142,7 @@ void MainWindow::load_config(QString filename) {
 			QString key = words.takeFirst() + ' ' + words.takeFirst();
 
 			int val = 0;
-			for (const auto &word : words) {
+			for (const auto &word : qAsConst(words)) {
 				if (word == "post_clocksync") { val |= lsl::post_clocksync; }
 				if (word == "post_dejitter") { val |= lsl::post_dejitter; }
 				if (word == "post_monotonize") { val |= lsl::post_monotonize; }
@@ -324,7 +324,7 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 	// Then add knownStreams (only in list if resolved).
 	const QBrush good_brush(QColor(0, 128, 0)), bad_brush(QColor(255, 0, 0));
 	ui->streamList->clear();
-	for (auto& m : missingStreams) {
+	for (auto& m : qAsConst(missingStreams)) {
 		auto *item = new QListWidgetItem(m, ui->streamList);
 		item->setCheckState(Qt::Checked);
 		item->setForeground(bad_brush);
@@ -417,7 +417,7 @@ void MainWindow::startRecording() {
 
 		
 		std::vector<std::string> watchfor;
-		for (const QString &missing : missingStreams) {
+		for (const QString &missing : qAsConst(missingStreams)) {
 			// Convert missing to query expected by lsl::resolve_stream
 			// name='BioSemi' and hostname=AASDFSDF
 			// QRegularExpression rx("(\S+)\s+\((\S+)\)");
@@ -568,7 +568,7 @@ QString MainWindow::find_config_file(const char *filename) {
 	QStringList cfgpaths;
 	cfgpaths << QDir::currentPath()
 			 << QStandardPaths::standardLocations(QStandardPaths::ConfigLocation) << exeInfo.path();
-	for (auto path : cfgpaths) {
+	for (const auto &path : qAsConst(cfgpaths)) {
 		QString cfgfilepath = path + QDir::separator() + defaultCfgFilename;
 		if (QFileInfo::exists(cfgfilepath)) return cfgfilepath;
 	}

@@ -9,7 +9,7 @@ RemoteControlSocket::RemoteControlSocket(uint16_t port) : server() {
 void RemoteControlSocket::addClient() {
 	auto *client = server.nextPendingConnection();
 	clients.push_back(client);
-	connect(client, &QTcpSocket::readyRead, [this, client]() {
+	connect(client, &QTcpSocket::readyRead, this, [this, client]() {
 		if (!client->canReadLine()) return;
 		QString line(client->readLine());
 		qInfo() << line;
