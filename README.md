@@ -60,6 +60,7 @@ Currently supported commands include:
 * `select none`
 * `start`
 * `stop`
+* `update`
 * `filename ...`
 
 `filename` is followed by a series of space-delimited options enclosed in curly braces. e.g. {root:C:\root_data_dir}
