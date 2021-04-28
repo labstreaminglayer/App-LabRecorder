@@ -15,6 +15,7 @@ public:
 	RemoteControlSocket(uint16_t port);
 
 signals:
+	void refresh_streams();
 	void start();
 	void stop();
 	void filename(QString s);

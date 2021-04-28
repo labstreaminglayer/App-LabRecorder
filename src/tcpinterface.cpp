@@ -24,6 +24,8 @@ void RemoteControlSocket::handleLine(QString s, QTcpSocket *sock) {
 		emit start();
 	else if (s == "stop")
 		emit stop();
+	else if (s == "update")
+			emit refresh_streams();
 	else if (s.contains("filename")) {
 		emit filename(s);
 	} else if (s.contains("select")) {
