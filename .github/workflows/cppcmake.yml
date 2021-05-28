@@ -11,8 +11,8 @@ on:
     types: ['created']
 
 env:
-  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.14.0'
-  LSL_RELEASE: '1.14.0'
+  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.14.1b6'
+  LSL_RELEASE: '1.14.1'
 
 defaults:
   run:
