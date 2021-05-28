@@ -54,7 +54,7 @@ jobs:
       run: |
            sudo apt install -y libpugixml-dev
            curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
-           sudo dpkg -i liblsl.deb
+           sudo apt install ./liblsl.deb
 
     - name: Download liblsl (Windows)
       if: matrix.config.os == 'windows-latest'
