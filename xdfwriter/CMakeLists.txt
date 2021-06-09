@@ -4,7 +4,7 @@ project(xdfwriter
 	DESCRIPTION "C++ library for writing XDF files"
 	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
 	LANGUAGES C CXX
-	VERSION 1.14.0)
+	VERSION 1.14.1)
 
 option(LABRECORDER_XDFZ "use Boost.Iostreams for XDFZ support" Off)
 option(LABRECORDER_BOOST_TYPE_CONVERSIONS "Use boost for type conversions" Off)
@@ -16,7 +16,7 @@ add_library(${PROJECT_NAME} xdfwriter.cpp)
 
 add_executable(testxdfwriter test_xdf_writer.cpp)
 
-target_link_libraries(testxdfwriter PRIVATE xdfwriter)
+target_link_libraries(testxdfwriter PRIVATE ${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
 # Test for floating point format and endianness
@@ -42,8 +42,8 @@ endif()
 if(LABRECORDER_BOOST_TYPE_CONVERSIONS)
 	message(STATUS "Searching Boost for type conversions")
 	find_package(Boost REQUIRED)
-	target_link_libraries(xdfwriter PRIVATE Boost::boost)
-	target_compile_definitions(xdfwriter PUBLIC EXOTIC_ARCH_SUPPORT)
+	target_link_libraries(${PROJECT_NAME} PRIVATE Boost::boost)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC EXOTIC_ARCH_SUPPORT)
 endif()
 
 # Enable xdfz support if Boost::iostreams and Boost.zlib (Windows) or plain zlib (Unix) was found
@@ -51,13 +51,13 @@ if(LABRECORDER_XDFZ)
 	find_package(Boost REQUIRED COMPONENTS iostreams)
 	if(WIN32)
 		find_package(Boost REQUIRED COMPONENTS zlib)
-		target_link_libraries(xdfwriter PRIVATE Boost::iostreams Boost::zlib)
+		target_link_libraries(${PROJECT_NAME} PRIVATE Boost::iostreams Boost::zlib)
 	else()
 		find_package(ZLIB REQUIRED)
-		target_link_libraries(xdfwriter PRIVATE Boost::iostreams ${ZLIB_LIBRARIES})
+		target_link_libraries(${PROJECT_NAME} PRIVATE Boost::iostreams ${ZLIB_LIBRARIES})
 	endif()
 	message(STATUS "Found zlib, enabling support for xdfz files")
-	target_compile_definitions(xdfwriter PUBLIC XDFZ_SUPPORT=1)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC XDFZ_SUPPORT=1)
 endif()
 
 
