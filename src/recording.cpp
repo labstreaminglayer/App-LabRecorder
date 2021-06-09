@@ -129,9 +129,9 @@ void recording::record_from_query_results(const std::string &query) {
 		std::cout << "Watching for a stream with properties " << query << std::endl;
 		while (!shutdown_) {
 			// periodically re-resolve the query
-			std::vector<lsl::stream_info> results = lsl::resolve_stream(query, 0, resolve_interval);
+			const std::vector<lsl::stream_info> results = lsl::resolve_stream(query, 0, resolve_interval);
 			// for each result...
-			for (auto &result : results) {
+			for (const auto &result : results) {
 				// if it is a new stream...
 				std::string _uid = result.uid();
 				std::string _src_id = result.source_id();

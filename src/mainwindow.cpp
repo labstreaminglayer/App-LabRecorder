@@ -266,7 +266,7 @@ void MainWindow::save_config(QString filename) {
 	// Stub.
 }
 
-QString info_to_listName(lsl::stream_info info) {
+QString info_to_listName(const lsl::stream_info& info) {
 	return QString::fromStdString(info.name() + " (" + info.hostname() + ")");
 }
 
@@ -276,11 +276,11 @@ QString info_to_listName(lsl::stream_info info) {
  * @return A vector of found stream_infos
  */
 std::vector<lsl::stream_info> MainWindow::refreshStreams() {
-	std::vector<lsl::stream_info> resolvedStreams = lsl::resolve_streams(1.0);
+	const std::vector<lsl::stream_info> resolvedStreams = lsl::resolve_streams(1.0);
 
 	// For each item in resolvedStreams, ignore if already in knownStreams, otherwise add to knownStreams.
 	// if in missingStreams then also mark it as required (--> checked by default) and remove from missingStreams.
-	for (auto& s : resolvedStreams) {
+	for (const auto& s : resolvedStreams) {
 		bool known = false;
 		for (auto &k : knownStreams) {
 			known |= s.name() == k.name && s.type() == k.type && s.source_id() == k.id;
@@ -308,7 +308,7 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 		bool resolved = false;
 		size_t r_ind = 0;
 		while (!resolved && r_ind < resolvedStreams.size()) {
-			lsl::stream_info r = resolvedStreams[r_ind];
+			const lsl::stream_info r = resolvedStreams[r_ind];
 			resolved |= (r.name() == k.name) && (r.type() == k.type) && (r.source_id() == k.id);
 			r_ind++;
 		}
@@ -339,7 +339,7 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 
 	// return a std::vector of streams of checked and not missing streams.
 	std::vector<lsl::stream_info> requestedAndAvailableStreams;
-	for (auto &r : resolvedStreams) {
+	for (const auto &r : resolvedStreams) {
 		for (auto &k : knownStreams) {
 			if ((r.name() == k.name) && (r.type() == k.type) && (r.source_id() == k.id)) {
 				if (k.checked) { requestedAndAvailableStreams.push_back(r); }
