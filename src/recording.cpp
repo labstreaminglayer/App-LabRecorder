@@ -129,9 +129,9 @@ void recording::record_from_query_results(const std::string &query) {
 		std::cout << "Watching for a stream with properties " << query << std::endl;
 		while (!shutdown_) {
 			// periodically re-resolve the query
-			std::vector<lsl::stream_info> results = lsl::resolve_stream(query, 0, resolve_interval);
+			const std::vector<lsl::stream_info> results = lsl::resolve_stream(query, 0, resolve_interval);
 			// for each result...
-			for (auto &result : results) {
+			for (const auto &result : results) {
 				// if it is a new stream...
 				std::string _uid = result.uid();
 				std::string _src_id = result.source_id();
@@ -166,7 +166,6 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 		streamid_t streamid = fresh_streamid();
 
 		inlet_p in;
-		lsl::stream_info info;
 
 		// --- headers phase
 		try {
@@ -188,8 +187,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			}
 
 			// retrieve the stream header & get its XML version
-			info = in->info();
-			file_.write_stream_header(streamid, info.as_xml());
+			file_.write_stream_header(streamid, in->info().as_xml());
 			std::cout << "Received header for stream " << src.name() << "." << std::endl;
 
 			leave_headers_phase(phase_locked);
@@ -209,30 +207,32 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			enter_streaming_phase(phase_locked);
 			std::cout << "Started data collection for stream " << src.name() << "." << std::endl;
 
+			const double nominal_srate = in->info().nominal_srate();
+
 			// now write the actual sample chunks...
 			switch (src.channel_format()) {
 			case lsl::cf_int8:
-				typed_transfer_loop<char>(streamid, info.nominal_srate(), in, first_timestamp,
+				typed_transfer_loop<char>(streamid, nominal_srate, in, first_timestamp,
 					last_timestamp, sample_count);
 				break;
 			case lsl::cf_int16:
-				typed_transfer_loop<int16_t>(streamid, info.nominal_srate(), in, first_timestamp,
+				typed_transfer_loop<int16_t>(streamid, nominal_srate, in, first_timestamp,
 					last_timestamp, sample_count);
 				break;
 			case lsl::cf_int32:
-				typed_transfer_loop<int32_t>(streamid, info.nominal_srate(), in, first_timestamp,
+				typed_transfer_loop<int32_t>(streamid, nominal_srate, in, first_timestamp,
 					last_timestamp, sample_count);
 				break;
 			case lsl::cf_float32:
-				typed_transfer_loop<float>(streamid, info.nominal_srate(), in, first_timestamp,
+				typed_transfer_loop<float>(streamid, nominal_srate, in, first_timestamp,
 					last_timestamp, sample_count);
 				break;
 			case lsl::cf_double64:
-				typed_transfer_loop<double>(streamid, info.nominal_srate(), in, first_timestamp,
+				typed_transfer_loop<double>(streamid, nominal_srate, in, first_timestamp,
 					last_timestamp, sample_count);
 				break;
 			case lsl::cf_string:
-				typed_transfer_loop<std::string>(streamid, info.nominal_srate(), in,
+				typed_transfer_loop<std::string>(streamid, nominal_srate, in,
 					first_timestamp, last_timestamp, sample_count);
 				break;
 			default:
