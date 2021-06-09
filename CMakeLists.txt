@@ -5,26 +5,17 @@ project(LabRecorder
 	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
 	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
 	LANGUAGES C CXX
-	VERSION 1.14.0)
-
-option(LABRECORDER_TRY_QT6 "Search for Qt6 first. Doesn't supported packaging yet." ON)
+	VERSION 1.14.1)
 
 # Needed for customized MacOSXBundleInfo.plist.in
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
-find_package(LSL REQUIRED
-	HINTS ${LSL_INSTALL_ROOT}
-	"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/build/"
-	"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/build/install"
-	"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/out/build/x64-Release"
-	"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/out/install/x64-Release"
-	PATH_SUFFIXES share/LSL
-)
-
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 
+# Dependencies
 
+## LSL
 if(ANDROID)
 	set(LIBLSL_SOURCE_PATH "../../LSL/liblsl" CACHE STRING "Path to liblsl sources")
 
@@ -32,7 +23,6 @@ if(ANDROID)
 	# as path of the normal build process
 	add_subdirectory(${LIBLSL_SOURCE_PATH} liblsl_bin)
 	add_library(LSL::lsl ALIAS lsl)
-	find_package(Qt6 COMPONENTS Widgets Network)
 else()
 	find_package(LSL REQUIRED
 		HINTS ${LSL_INSTALL_ROOT}
@@ -44,22 +34,23 @@ else()
 	)
 endif()
 
-if(LABRECORDER_TRY_QT6)
-	find_package(Qt6 QUIET COMPONENTS Widgets Network)
-	if(Qt6_FOUND)
-		qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
-		set(LABRECORDER_QT_VER Qt)
-	endif()
-endif()
-
+## Qt
+# - automoc etc not necessary because it is taken care of by LSLCMake.
+find_package(Qt6 COMPONENTS Widgets Network)
 if(NOT Qt6_FOUND)
-	find_package(Qt5 REQUIRED COMPONENTS Widgets Network)
-	set(LABRECORDER_QT_VER Qt5)
+	# Require 5.15 so we can use version-agnostic linking.
+	find_package(Qt5 5.15 COMPONENTS Core Widgets Network REQUIRED)
 	add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
+else()
+	qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
 endif()
 
+## Threads
 find_package(Threads REQUIRED)
 
+# Targets
+
+## xdfwriter - stand alone library
 add_subdirectory(xdfwriter)
 
 target_sources(${PROJECT_NAME} PRIVATE
@@ -82,8 +73,8 @@ add_executable(LabRecorderCLI MACOSX_BUNDLE
 target_link_libraries(${PROJECT_NAME}
 	PRIVATE
 	xdfwriter
-	${LABRECORDER_QT_VER}::Widgets
-	${LABRECORDER_QT_VER}::Network
+	Qt::Widgets
+	Qt::Network
 	Threads::Threads
 	LSL::lsl
 )
