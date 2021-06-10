@@ -66,6 +66,7 @@ jobs:
       if: startsWith(matrix.config.os, 'windows') || startsWith(matrix.config.os, 'macOS')
       uses: jurplel/install-qt-action@v2.12.2
       with:
+         version: '6.1.1'
          arch: ${{ matrix.config.qt }}
 
     - name: Install Qt .deb packages
