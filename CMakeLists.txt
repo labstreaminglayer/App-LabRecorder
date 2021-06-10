@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.14" CACHE STRING "Minimum MacOS deployment version")
+set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum MacOS deployment version")
 
 project(LabRecorder
 	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
@@ -35,11 +35,13 @@ else()
 endif()
 
 ## Qt
-# - automoc etc not necessary because it is taken care of by LSLCMake.
-find_package(Qt6 COMPONENTS Widgets Network)
+set(CMAKE_AUTOMOC ON)  # The later version of this in LSLCMake is somehow not enough.
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+find_package(Qt6 COMPONENTS Core Widgets Network DBus)
 if(NOT Qt6_FOUND)
 	# Require 5.15 so we can use version-agnostic linking.
-	find_package(Qt5 5.15 COMPONENTS Core Widgets Network REQUIRED)
+	find_package(Qt5 5.15 COMPONENTS Core Widgets Network DBus REQUIRED)
 	add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
 else()
 	qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
@@ -75,6 +77,7 @@ target_link_libraries(${PROJECT_NAME}
 	xdfwriter
 	Qt::Widgets
 	Qt::Network
+	Qt::DBus
 	Threads::Threads
 	LSL::lsl
 )
