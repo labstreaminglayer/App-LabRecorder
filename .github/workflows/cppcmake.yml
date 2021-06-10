@@ -46,6 +46,7 @@ jobs:
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
       run: |
+           sudo apt install -y libpugixml1v5
            curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
            sudo dpkg -i liblsl.deb
 
@@ -63,14 +64,14 @@ jobs:
            tar -xvf liblsl.tar.bz2 -C LSL
 
     - name: Install Qt
-      if: startsWith(matrix.config.os, 'windows') || startsWith(matrix.config.os, 'macOS')
+      if: startsWith(matrix.config.os, 'windows') || startsWith(matrix.config.os, 'macOS') || startsWith(matrix.config.os, 'ubuntu-18.04')
       uses: jurplel/install-qt-action@v2.12.2
       with:
          version: '6.1.0'
          arch: ${{ matrix.config.qt }}
 
     - name: Install Qt .deb packages
-      if: startsWith(matrix.config.os, 'ubuntu-')
+      if: startsWith(matrix.config.os, 'ubuntu-20.04')
       run: sudo apt install -y qtbase5-dev
 
     - name: Configure CMake
