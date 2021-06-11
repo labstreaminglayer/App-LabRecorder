@@ -18,7 +18,7 @@ defaults:
   run:
     shell: bash
 
-
+# Check qt_ver on # https://download.qt.io/online/qtsdkrepository/
 jobs:
   build:
     name: ${{ matrix.config.name }}
@@ -32,7 +32,7 @@ jobs:
           qt_ver: "6.1.0"
         - name: "ubuntu-18.04"
           os: "ubuntu-18.04"
-          qt_ver: "5.15"
+          qt_ver: "5.15.2"
         - name: "windows-x64"
           os: "windows-latest"
           cmake_extra: "-T v142,host=x86"
@@ -44,7 +44,7 @@ jobs:
           cmake_extra: "-T v142,host=x86 -A Win32"
           arch: "i386"
           qt_arch: "win32_msvc2019"
-          qt_ver: "5.15"
+          qt_ver: "5.15.2"
         - name: "macOS-latest"
           os: "macOS-latest"
           qt_ver: "6.1.0"
