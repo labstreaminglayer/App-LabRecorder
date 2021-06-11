@@ -11,7 +11,7 @@ on:
     types: ['created']
 
 env:
-  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.14.1b7'
+  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.14.1b9'
   LSL_RELEASE: '1.14.1'
 
 defaults:
@@ -27,26 +27,34 @@ jobs:
       fail-fast: false
       matrix:
         config:
-        - {name: "ubuntu-20.04", os: "ubuntu-20.04"}
-        - {name: "ubuntu-18.04", os: "ubuntu-18.04"}
+        - name: "ubuntu-20.04"
+          os: "ubuntu-20.04"
+          qt_ver: "6.1.0"
+        - name: "ubuntu-18.04"
+          os: "ubuntu-18.04"
+          qt_ver: "5.15"
         - name: "windows-x64"
           os: "windows-latest"
           cmake_extra: "-T v142,host=x86"
           arch: "amd64"
-          qt: "win64_msvc2019_64"
+          qt_arch: "win64_msvc2019_64"
+          qt_ver: "6.1.0"
         - name: "windows-x86"
           os: "windows-latest"
           cmake_extra: "-T v142,host=x86 -A Win32"
           arch: "i386"
-          qt: "win32_msvc2019"
-        - {name: "macOS-latest", os: "macOS-latest"}
+          qt_arch: "win32_msvc2019"
+          qt_ver: "5.15"
+        - name: "macOS-latest"
+          os: "macOS-latest"
+          qt_ver: "6.1.0"
     steps:
     - uses: actions/checkout@v2
 
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
       run: |
-           sudo apt install -y libpugixml1v5
+           sudo apt install -y libpugixml-dev
            curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
            sudo dpkg -i liblsl.deb
 
@@ -66,8 +74,8 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v2.12.2
       with:
-         version: '6.1.0'
-         arch: ${{ matrix.config.qt }}
+         version: ${{ matrix.config.qt_ver }}
+         arch: ${{ matrix.config.qt_arch }}
 
     - name: Configure CMake
       run: |
@@ -86,7 +94,7 @@ jobs:
 
     - name: package
       run: |
-           export LD_LIBRARY_PATH=$Qt5_Dir/lib:$LD_LIBRARY_PATH
+           export LD_LIBRARY_PATH=$Qt5_Dir/lib:$Qt6_Dir/lib:$LD_LIBRARY_PATH
            cmake --build build --config Release -j --target package
            cmake -E remove_directory package/_CPack_Packages
 
