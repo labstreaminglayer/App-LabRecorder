@@ -7,6 +7,12 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QStandardPaths>
+#if QT_VERSION_MAJOR < 6
+#include <QRegExp>
+#else
+#include <QRegularExpression>
+using QRegExp = QRegularExpression;
+#endif
 
 #include <string>
 #include <vector>
@@ -90,14 +96,14 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 
 void MainWindow::statusUpdate() const {
 	if (currentRecording) {
-		auto elapsed = static_cast<unsigned int>(lsl::local_clock() - startTime);
+		auto elapsed = static_cast<int>(lsl::local_clock() - startTime);
 		QString recFilename = replaceFilename(QDir::cleanPath(ui->lineEdit_template->text()));
 		auto fileinfo = QFileInfo(QDir::cleanPath(ui->rootEdit->text()) + '/' + recFilename);
 		fileinfo.refresh();
 		auto size = fileinfo.size();
 		QString timeString = QStringLiteral("Recording to %1 (%2; %3kb)")
 								 .arg(QDir::toNativeSeparators(recFilename),
-									 QDateTime::fromTime_t(elapsed).toUTC().toString("hh:mm:ss"),
+									 QTime(0,0).addSecs(elapsed).toString("hh:mm:ss"),
 									 QString::number(size / 1000));
 		statusBar()->showMessage(timeString);
 	}
@@ -126,14 +132,25 @@ void MainWindow::load_config(QString filename) {
 		// ----------------------------
 		// required streams
 		// ----------------------------
-		missingStreams = pt.value("RequiredStreams").toStringList().toSet();
+		auto required = pt.value("RequiredStreams").toStringList();
+#if QT_VERSION >= QT_VERSION_CHECK(5,14,0)
+		missingStreams = QSet<QString>(required.begin(), required.end());
+#else
+		missingStreams = required.toSet();
+#endif
 
 		// ----------------------------
 		// online sync streams
 		// ----------------------------
 		QStringList onlineSyncStreams = pt.value("OnlineSync", QStringList()).toStringList();
 		for (QString &oss : onlineSyncStreams) {
-			QStringList words = oss.split(' ', QString::SkipEmptyParts);  // Deprecated --> Qt::SkipEmptyParts as of Qt 5.14, but not easily available to Ubuntu 18.04
+#if QT_VERSION >= QT_VERSION_CHECK(5,14,0)
+			auto skipEmpty = Qt::SkipEmptyParts;
+#else
+			auto skipEmpty = QString::SkipEmptyParts;
+#endif
+
+			QStringList words = oss.split(' ', skipEmpty);
 			// The first two words ("StreamName (PC)") are the stream identifier
 			if (words.length() < 2) {
 				qInfo() << "Invalid sync stream config: " << oss;
