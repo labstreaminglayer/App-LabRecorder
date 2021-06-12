@@ -40,11 +40,13 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 find_package(Qt6 COMPONENTS Core Widgets Network DBus)
 if(NOT Qt6_FOUND)
-	# Require 5.15 so we can use version-agnostic linking.
-	find_package(Qt5 5.15 COMPONENTS Core Widgets Network DBus REQUIRED)
+	# If we require 5.15 then we can use version-agnostic linking, but 5.15 not easily available on Ubuntu.
+	find_package(Qt5 COMPONENTS Core Widgets Network DBus REQUIRED)
 	add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
+    set(LSLAPP_QT_VER Qt5)
 else()
 	qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
+    set(LSLAPP_QT_VER Qt)
 endif()
 
 ## Threads
@@ -75,9 +77,9 @@ add_executable(LabRecorderCLI MACOSX_BUNDLE
 target_link_libraries(${PROJECT_NAME}
 	PRIVATE
 	xdfwriter
-	Qt::Widgets
-	Qt::Network
-	Qt::DBus
+	${LSLAPP_QT_VER}::Widgets
+	${LSLAPP_QT_VER}::Network
+	${LSLAPP_QT_VER}::DBus
 	Threads::Threads
 	LSL::lsl
 )
@@ -130,3 +132,4 @@ endif()
 
 set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
+

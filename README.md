@@ -5,16 +5,41 @@
 
 The LabRecorder is the default recording program that comes with LSL. It allows to record all streams on the lab network (or a subset) into a single file, with time synchronization between streams.
 
-[Download it from the Releases page](https://github.com/labstreaminglayer/App-LabRecorder/releases).
-
 # File Format
 
 The file format used by the LabRecorder is XDF. This is an open general-purpose format that was designed concurrently with LSL and supports all features of LSL streams. The project page is [here](https://github.com/sccn/xdf). There are importers for MATLAB, EEGLAB, BCILAB, Python, and MoBILAB.
 
 # Getting LabRecorder
 
+## Dependencies
+
+For LabRecorder to work on your system, you might need to first install some dependencies.
+
+### MacOS
+
+In the near future it will be necessary to use [homebrew](https://brew.sh/) to manage LSL Apps and their dependencies:
+* Install homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+* Install liblsl: `brew install labstreaminglayer/tap/lsl`
+* Install Qt6: `brew install qt`
+
+### Linux Ubuntu
+
+The Ubuntu releases do not typically ship with their dependencies so you will also have to download and install those:
+* Download and install the latest [liblsl-{version}-bionic_amd64.deb from its release page](https://github.com/sccn/liblsl/releases)
+    * We hope to make this available via a package manager soon.
+    * You can install liblsl directly by double clicking on it, or with with `sudo dpkg -i {filename}.deb`
+* See the bottom of the [lsl build env docs](https://labstreaminglayer.readthedocs.io/dev/build_env.html).
+    * For most cases, this will amount to `sudo apt-get install qtbase5-dev`
+
+## Downloading LabRecorder
+
+### MacOS
+
+* `brew install labrecorder`
+
+### Others
+
 Navigate to the [`releases` page](https://github.com/labstreaminglayer/App-LabRecorder/releases) and download the latest release for your platform.
-The Ubuntu releases do not typically ship with the libsl dependencies so you will also have to download and install [liblsl from its release page](https://github.com/sccn/liblsl/releases).
 
 # Usage
 
