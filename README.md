@@ -19,8 +19,6 @@ For LabRecorder to work on your system, you might need to first install some dep
 
 In the near future it will be necessary to use [homebrew](https://brew.sh/) to manage LSL Apps and their dependencies:
 * Install homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
-* Install liblsl: `brew install labstreaminglayer/tap/lsl`
-* Install Qt6: `brew install qt`
 
 ### Linux Ubuntu
 
@@ -35,7 +33,9 @@ The Ubuntu releases do not typically ship with their dependencies so you will al
 
 ### MacOS
 
-* `brew install labrecorder`
+* `brew install labstreaminglayer/tap/labrecorder`
+
+* Run it with `open /usr/local/opt/labrecorder/LabRecorder/LabRecorder.app`
 
 ### Others
 
