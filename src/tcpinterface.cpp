@@ -10,11 +10,8 @@ void RemoteControlSocket::addClient() {
 	auto *client = server.nextPendingConnection();
 	clients.push_back(client);
 	connect(client, &QTcpSocket::readyRead, this, [this, client]() {
-		if (!client->canReadLine()) return;
-		QString line(client->readLine());
-		qInfo() << line;
-		line = line.trimmed();
-		this->handleLine(line, client);
+		while(client->canReadLine())
+			this->handleLine(client->readLine().trimmed(), client);
 	});
 }
 
