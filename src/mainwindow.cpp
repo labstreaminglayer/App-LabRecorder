@@ -457,8 +457,6 @@ void MainWindow::startRecording() {
 	} else if (!hideWarnings) {
 		QMessageBox::information(
 			this, "Already recording", "The recording is already running", QMessageBox::Ok);
-	} else {
-		hideWarnings = false;
 	}
 }
 
@@ -474,8 +472,6 @@ void MainWindow::stopRecording() {
 	} else if (!hideWarnings) {
 		QMessageBox::information(
 			this, "Not recording", "There is not ongoing recording", QMessageBox::Ok);
-	} else {
-		hideWarnings = false;
 	}
 }
 
