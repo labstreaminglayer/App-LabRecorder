@@ -454,23 +454,24 @@ void MainWindow::startRecording() {
 		ui->startButton->setEnabled(false);
 		startTime = (int)lsl::local_clock();
 
-	} else
+	} else if (!hideWarnings) {
 		QMessageBox::information(
 			this, "Already recording", "The recording is already running", QMessageBox::Ok);
+	}
 }
 
 void MainWindow::stopRecording() {
 
-	if (!currentRecording)
-		QMessageBox::information(
-			this, "Not recording", "There is not ongoing recording", QMessageBox::Ok);
-	else {
+	if (currentRecording) {
 		try {
 			currentRecording = nullptr;
 		} catch (std::exception &e) { qWarning() << "exception on stop: " << e.what(); }
 		ui->startButton->setEnabled(true);
 		ui->stopButton->setEnabled(false);
 		statusBar()->showMessage("Stopped");
+	} else if (!hideWarnings) {
+		QMessageBox::information(
+			this, "Not recording", "There is not ongoing recording", QMessageBox::Ok);
 	}
 }
 
@@ -617,7 +618,7 @@ void MainWindow::enableRcs(bool bEnable) {
 		// TODO: Add some method to RemoteControlSocket to report if its server is listening (i.e. was successful).
 		connect(rcs.get(), &RemoteControlSocket::refresh_streams, this, &MainWindow::refreshStreams);
 		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::rcsStartRecording);
-		connect(rcs.get(), &RemoteControlSocket::stop, this, &MainWindow::stopRecording);
+		connect(rcs.get(), &RemoteControlSocket::stop, this, &MainWindow::rcsStopRecording);
 		connect(rcs.get(), &RemoteControlSocket::filename, this, &MainWindow::rcsUpdateFilename);
 		connect(rcs.get(), &RemoteControlSocket::select_all, this, &MainWindow::selectAllStreams);
 		connect(rcs.get(), &RemoteControlSocket::select_none, this, &MainWindow::selectNoStreams);
@@ -640,6 +641,11 @@ void MainWindow::rcsStartRecording() {
 	hideWarnings = true;
 	selectAllStreams();
 	startRecording();
+}
+
+void MainWindow::rcsStopRecording() {
+	hideWarnings = true;
+	stopRecording();
 }
 
 void MainWindow::rcsUpdateFilename(QString s) {
