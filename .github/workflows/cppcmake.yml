@@ -1,6 +1,7 @@
 name: C/C++ CI
 
 on:
+  workflow_dispatch:
   push:
     branches: ['*']
     tags:
@@ -84,7 +85,6 @@ jobs:
                 -DCPACK_PACKAGE_DIRECTORY=${PWD}/package \
                 -DLSL_INSTALL_ROOT=$PWD/LSL/ \
                 -DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON \
-                -DCPACK_DEBIAN_PACKAGE_DEPENDS=1 \
                 ${{ matrix.config.cmake_extra }}
 
     - name: make
