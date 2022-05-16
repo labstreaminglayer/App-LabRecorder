@@ -134,7 +134,7 @@ endif()
 set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
 
-if(APPLE)
+if(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
 	# Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path. Unfortunately, macdeployqt
 	#  does not seem to traverse @loader_path dependencies. So we are forced to call `fixup_bundle`. For now, we only do this if homebrew is present
 	#  because that seems to be where the bad dependency is coming from.
