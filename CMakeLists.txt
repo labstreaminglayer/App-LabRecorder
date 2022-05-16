@@ -5,7 +5,7 @@ project(LabRecorder
 	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
 	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
 	LANGUAGES C CXX
-	VERSION 1.16.1)
+	VERSION 1.16.2)
 
 # Needed for customized MacOSXBundleInfo.plist.in
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -117,12 +117,13 @@ if (WIN32)
 		$<TARGET_FILE:LSL::lsl>
 		$<TARGET_FILE:xdfwriter>
 		$<TARGET_FILE_DIR:${PROJECT_NAME}>)
-	add_custom_command(
-		TARGET ${PROJECT_NAME} POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy
-		${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
-		$<TARGET_FILE_DIR:${PROJECT_NAME}>)
 endif()
+
+add_custom_command(
+	TARGET ${PROJECT_NAME} POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy
+	${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
+	$<TARGET_FILE_DIR:${PROJECT_NAME}>)
 
 if(Qt6_FOUND)
 	set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -133,3 +134,25 @@ endif()
 set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
 
+if(APPLE)
+	# Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path. Unfortunately, macdeployqt
+	#  does not seem to traverse @loader_path dependencies. So we are forced to call `fixup_bundle`. For now, we only do this if homebrew is present
+	#  because that seems to be where the bad dependency is coming from.
+	# Note that fixup_bundle also destory the codesigning so we have to redo that.
+ 	# TODO: Checkout supercollider apple-specific stuff, e.g.: https://github.com/supercollider/supercollider/blob/develop/CMakeLists.txt#L260-L262
+	execute_process(
+        COMMAND brew --prefix
+        RESULT_VARIABLE BREW_LIB
+        OUTPUT_VARIABLE BREW_PREFIX
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+	if (BREW_LIB EQUAL 0 AND EXISTS "${BREW_PREFIX}")
+		install(CODE
+				"
+					include(BundleUtilities)
+					fixup_bundle(\"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\" \"\" \"${BREW_PREFIX}/lib\")
+					execute_process(COMMAND codesign --force --deep --sign - ${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app)
+				"
+			)
+	endif()
+endif(APPLE)
