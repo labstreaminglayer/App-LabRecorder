@@ -6,6 +6,7 @@ ui_*.h
 /CMakeLists.txt.user
 /CMakeLists.json
 /.vs/
+/.vscode/
 /out/
 /CMakeSettings.json
 # CLion
