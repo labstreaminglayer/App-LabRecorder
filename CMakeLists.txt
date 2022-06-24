@@ -13,6 +13,8 @@ SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 
+option(CLI_ONLY "Only compile the CLI (no GUI)" OFF)
+
 # Dependencies
 
 ## LSL
@@ -34,20 +36,25 @@ else()
 	)
 endif()
 
-## Qt
-set(CMAKE_AUTOMOC ON)  # The later version of this in LSLCMake is somehow not enough.
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
-find_package(Qt6 COMPONENTS Core Widgets Network DBus)
-if(NOT Qt6_FOUND)
-	# If we require 5.15 then we can use version-agnostic linking, but 5.15 not easily available on Ubuntu.
-	find_package(Qt5 COMPONENTS Core Widgets Network DBus REQUIRED)
-	add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
-    set(LSLAPP_QT_VER Qt5)
+if (NOT CLI_ONLY)
+	## Qt
+	set(CMAKE_AUTOMOC ON)  # The later version of this in LSLCMake is somehow not enough.
+	set(CMAKE_AUTORCC ON)
+	set(CMAKE_AUTOUIC ON)
+	find_package(Qt6 COMPONENTS Core Widgets Network DBus)
+	if(NOT Qt6_FOUND)
+		# If we require 5.15 then we can use version-agnostic linking, but 5.15 not easily available on Ubuntu.
+		find_package(Qt5 COMPONENTS Core Widgets Network DBus REQUIRED)
+		add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
+		set(LSLAPP_QT_VER Qt5)
+	else()
+		qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
+		set(LSLAPP_QT_VER Qt)
+	endif()
 else()
-	qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
-    set(LSLAPP_QT_VER Qt)
-endif()
+	#Create a dummy target for LabRecorder
+	#add_custom_target(${PROJECT_NAME} ALL COMMAND touch ${PROJECT_NAME})
+endif(NOT CLI_ONLY)
 
 ## Threads
 find_package(Threads REQUIRED)
@@ -57,31 +64,34 @@ find_package(Threads REQUIRED)
 ## xdfwriter - stand alone library
 add_subdirectory(xdfwriter)
 
-target_sources(${PROJECT_NAME} PRIVATE
-	src/main.cpp
-	src/mainwindow.cpp
-	src/mainwindow.h
-	src/mainwindow.ui
-	src/recording.h
-	src/recording.cpp
-	src/tcpinterface.h
-	src/tcpinterface.cpp
-)
+if (NOT CLI_ONLY)
+	target_sources(${PROJECT_NAME} PRIVATE
+		src/main.cpp
+		src/mainwindow.cpp
+		src/mainwindow.h
+		src/mainwindow.ui
+		src/recording.h
+		src/recording.cpp
+		src/tcpinterface.h
+		src/tcpinterface.cpp
+	)
+
+	target_link_libraries(${PROJECT_NAME}
+		PRIVATE
+		xdfwriter
+		${LSLAPP_QT_VER}::Widgets
+		${LSLAPP_QT_VER}::Network
+		${LSLAPP_QT_VER}::DBus
+		Threads::Threads
+		LSL::lsl
+	)
+endif(NOT CLI_ONLY)
+
 
 add_executable(LabRecorderCLI MACOSX_BUNDLE
 	src/clirecorder.cpp
 	src/recording.h
 	src/recording.cpp
-)
-
-target_link_libraries(${PROJECT_NAME}
-	PRIVATE
-	xdfwriter
-	${LSLAPP_QT_VER}::Widgets
-	${LSLAPP_QT_VER}::Network
-	${LSLAPP_QT_VER}::DBus
-	Threads::Threads
-	LSL::lsl
 )
 
 target_link_libraries(LabRecorderCLI
@@ -93,43 +103,69 @@ target_link_libraries(LabRecorderCLI
 
 installLSLApp(xdfwriter)
 installLSLApp(testxdfwriter)
-installLSLApp(${PROJECT_NAME})
 installLSLApp(LabRecorderCLI)
-installLSLAuxFiles(${PROJECT_NAME}
-	${PROJECT_NAME}.cfg
-	LICENSE
-	README.md
-)
+if (NOT CLI_ONLY)
+	installLSLApp(${PROJECT_NAME})
+	installLSLAuxFiles(${PROJECT_NAME}
+		${PROJECT_NAME}.cfg
+		LICENSE
+		README.md
+	)
+else()
+	installLSLAuxFiles(LabRecorderCLI
+		${PROJECT_NAME}.cfg
+		LICENSE
+		README.md
+	)
+endif(NOT CLI_ONLY)
+
 
 if (WIN32)
-	get_target_property(QT_QMAKE_EXECUTABLE Qt::qmake IMPORTED_LOCATION)
-	get_filename_component(QT_WINDEPLOYQT_EXECUTABLE ${QT_QMAKE_EXECUTABLE} PATH)
-	set(QT_WINDEPLOYQT_EXECUTABLE "${QT_WINDEPLOYQT_EXECUTABLE}/windeployqt.exe")
+	if(NOT CLI_ONLY)
+		get_target_property(QT_QMAKE_EXECUTABLE Qt::qmake IMPORTED_LOCATION)
+		get_filename_component(QT_WINDEPLOYQT_EXECUTABLE ${QT_QMAKE_EXECUTABLE} PATH)
+		set(QT_WINDEPLOYQT_EXECUTABLE "${QT_WINDEPLOYQT_EXECUTABLE}/windeployqt.exe")
 
-	add_custom_command(
-		TARGET ${PROJECT_NAME} POST_BUILD
-		COMMAND ${QT_WINDEPLOYQT_EXECUTABLE}
-		--no-translations --no-system-d3d-compiler
-		--qmldir ${CMAKE_CURRENT_SOURCE_DIR}
-		$<TARGET_FILE_DIR:${PROJECT_NAME}>)
-	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different
-		$<TARGET_FILE:LSL::lsl>
-		$<TARGET_FILE:xdfwriter>
-		$<TARGET_FILE_DIR:${PROJECT_NAME}>)
+		add_custom_command(
+			TARGET ${PROJECT_NAME} POST_BUILD
+			COMMAND ${QT_WINDEPLOYQT_EXECUTABLE}
+			--no-translations --no-system-d3d-compiler
+			--qmldir ${CMAKE_CURRENT_SOURCE_DIR}
+			$<TARGET_FILE_DIR:${PROJECT_NAME}>)
+
+		add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			$<TARGET_FILE:LSL::lsl>
+			$<TARGET_FILE:xdfwriter>
+			$<TARGET_FILE_DIR:${PROJECT_NAME}>)
+	else()
+		add_custom_command(TARGET LabRecorderCLI POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			$<TARGET_FILE:LSL::lsl>
+			$<TARGET_FILE:xdfwriter>
+			$<TARGET_FILE_DIR:LabRecorderCLI>)
+	endif(NOT CLI_ONLY)
 endif()
 
+if (NOT CLI_ONLY)
 add_custom_command(
 	TARGET ${PROJECT_NAME} POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy
 	${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
 	$<TARGET_FILE_DIR:${PROJECT_NAME}>)
+else()
+add_custom_command(
+	TARGET LabRecorderCLI POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy
+	${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
+	$<TARGET_FILE_DIR:LabRecorderCLI>)
+endif(NOT CLI_ONLY)
 
-if(Qt6_FOUND)
+if(Qt6_FOUND AND NOT CLI_ONLY)
 	set_target_properties(${PROJECT_NAME} PROPERTIES
 		QT_ANDROID_EXTRA_LIBS "${CMAKE_CURRENT_BINARY_DIR}/liblsl_bin/liblsl.so")
 	qt_finalize_executable(${PROJECT_NAME})
-endif()
+endif(Qt6_FOUND AND NOT CLI_ONLY)
 
 set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
@@ -155,4 +191,4 @@ if(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
 				"
 			)
 	endif()
-endif(APPLE)
+endif(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
