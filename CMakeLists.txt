@@ -13,7 +13,7 @@ SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 
-option(CLI_ONLY "Only compile the CLI (no GUI)" OFF)
+option(BUILD_GUI "Build the GUI, set to off for CLI only build" ON)
 
 # Dependencies
 
@@ -36,7 +36,7 @@ else()
 	)
 endif()
 
-if (NOT CLI_ONLY)
+if (BUILD_GUI)
 	## Qt
 	set(CMAKE_AUTOMOC ON)  # The later version of this in LSLCMake is somehow not enough.
 	set(CMAKE_AUTORCC ON)
@@ -51,7 +51,7 @@ if (NOT CLI_ONLY)
 		qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
 		set(LSLAPP_QT_VER Qt)
 	endif()
-endif(NOT CLI_ONLY)
+endif(BUILD_GUI)
 
 ## Threads
 find_package(Threads REQUIRED)
@@ -61,7 +61,7 @@ find_package(Threads REQUIRED)
 ## xdfwriter - stand alone library
 add_subdirectory(xdfwriter)
 
-if (NOT CLI_ONLY)
+if (BUILD_GUI)
 	target_sources(${PROJECT_NAME} PRIVATE
 		src/main.cpp
 		src/mainwindow.cpp
@@ -82,7 +82,7 @@ if (NOT CLI_ONLY)
 		Threads::Threads
 		LSL::lsl
 	)
-endif(NOT CLI_ONLY)
+endif(BUILD_GUI)
 
 
 add_executable(LabRecorderCLI MACOSX_BUNDLE
@@ -101,7 +101,7 @@ target_link_libraries(LabRecorderCLI
 installLSLApp(xdfwriter)
 installLSLApp(testxdfwriter)
 installLSLApp(LabRecorderCLI)
-if (NOT CLI_ONLY)
+if (BUILD_GUI)
 	installLSLApp(${PROJECT_NAME})
 	installLSLAuxFiles(${PROJECT_NAME}
 		${PROJECT_NAME}.cfg
@@ -114,11 +114,11 @@ else()
 		LICENSE
 		README.md
 	)
-endif(NOT CLI_ONLY)
+endif(BUILD_GUI)
 
 
 if (WIN32)
-	if(NOT CLI_ONLY)
+	if(BUILD_GUI)
 		get_target_property(QT_QMAKE_EXECUTABLE Qt::qmake IMPORTED_LOCATION)
 		get_filename_component(QT_WINDEPLOYQT_EXECUTABLE ${QT_QMAKE_EXECUTABLE} PATH)
 		set(QT_WINDEPLOYQT_EXECUTABLE "${QT_WINDEPLOYQT_EXECUTABLE}/windeployqt.exe")
@@ -141,10 +141,10 @@ if (WIN32)
 			$<TARGET_FILE:LSL::lsl>
 			$<TARGET_FILE:xdfwriter>
 			$<TARGET_FILE_DIR:LabRecorderCLI>)
-	endif(NOT CLI_ONLY)
+	endif(BUILD_GUI)
 endif()
 
-if (NOT CLI_ONLY)
+if (BUILD_GUI)
 	add_custom_command(
 		TARGET ${PROJECT_NAME} POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy
@@ -156,13 +156,13 @@ else()
 		COMMAND ${CMAKE_COMMAND} -E copy
 		${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
 		$<TARGET_FILE_DIR:LabRecorderCLI>)
-endif(NOT CLI_ONLY)
+endif(BUILD_GUI)
 
-if(Qt6_FOUND AND NOT CLI_ONLY)
+if(Qt6_FOUND AND BUILD_GUI)
 	set_target_properties(${PROJECT_NAME} PROPERTIES
 		QT_ANDROID_EXTRA_LIBS "${CMAKE_CURRENT_BINARY_DIR}/liblsl_bin/liblsl.so")
 	qt_finalize_executable(${PROJECT_NAME})
-endif(Qt6_FOUND AND NOT CLI_ONLY)
+endif(Qt6_FOUND AND BUILD_GUI)
 
 set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
