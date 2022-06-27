@@ -51,9 +51,6 @@ if (NOT CLI_ONLY)
 		qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
 		set(LSLAPP_QT_VER Qt)
 	endif()
-else()
-	#Create a dummy target for LabRecorder
-	#add_custom_target(${PROJECT_NAME} ALL COMMAND touch ${PROJECT_NAME})
 endif(NOT CLI_ONLY)
 
 ## Threads
@@ -148,17 +145,17 @@ if (WIN32)
 endif()
 
 if (NOT CLI_ONLY)
-add_custom_command(
-	TARGET ${PROJECT_NAME} POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy
-	${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
-	$<TARGET_FILE_DIR:${PROJECT_NAME}>)
+	add_custom_command(
+		TARGET ${PROJECT_NAME} POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy
+		${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
+		$<TARGET_FILE_DIR:${PROJECT_NAME}>)
 else()
-add_custom_command(
-	TARGET LabRecorderCLI POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy
-	${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
-	$<TARGET_FILE_DIR:LabRecorderCLI>)
+	add_custom_command(
+		TARGET LabRecorderCLI POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy
+		${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
+		$<TARGET_FILE_DIR:LabRecorderCLI>)
 endif(NOT CLI_ONLY)
 
 if(Qt6_FOUND AND NOT CLI_ONLY)
