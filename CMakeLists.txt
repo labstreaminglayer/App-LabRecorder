@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum MacOS deployment version")
+#set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum MacOS deployment version")
 
 project(LabRecorder
 	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
@@ -14,6 +14,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 
 option(BUILD_GUI "Build the GUI, set to off for CLI only build" ON)
+
+set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
+set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 
 # Dependencies
 
@@ -168,10 +171,11 @@ set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
 
 if(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
-	# Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path. Unfortunately, macdeployqt
-	#  does not seem to traverse @loader_path dependencies. So we are forced to call `fixup_bundle`. For now, we only do this if homebrew is present
+	# Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path.
+	#  Unfortunately, macdeployqt does not seem to traverse @loader_path dependencies.
+	#  So we are forced to call `fixup_bundle`. For now, we only do this if homebrew is present
 	#  because that seems to be where the bad dependency is coming from.
-	# Note that fixup_bundle also destory the codesigning so we have to redo that.
+	# Note that fixup_bundle also destroys the codesigning so we have to redo that.
  	# TODO: Checkout supercollider apple-specific stuff, e.g.: https://github.com/supercollider/supercollider/blob/develop/CMakeLists.txt#L260-L262
 	execute_process(
         COMMAND brew --prefix
