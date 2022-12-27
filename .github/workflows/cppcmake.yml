@@ -82,7 +82,7 @@ jobs:
       run: sudo apt install qtbase5-dev
 
     - name: Install Qt (Ubuntu jammy)
-      if: matrix.config.os == 'ubuntu-22.04'
+      if: matrix.config.os == 'ubuntu-latest'
       run: sudo apt install qt6-base-dev freeglut3-dev
 
     - name: Install Qt (MacOS)
