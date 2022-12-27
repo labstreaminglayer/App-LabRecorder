@@ -11,44 +11,50 @@ The file format used by the LabRecorder is XDF. This is an open general-purpose 
 
 # Getting LabRecorder
 
+The [releases page](https://github.com/labstreaminglayer/App-LabRecorder/releases) contains archives of past LabRecorder builds. Try downloading and running an archive that matches your platform.
+
+If there are no archives matching your target platform, or the ones available don't run, then continue reading below. If the instructions don't help then please post an issue to the [repo's issues page](https://github.com/labstreaminglayer/App-LabRecorder/issues).
+
 ## Dependencies
 
-For LabRecorder to work on your system, you might need to first install some dependencies.
+For LabRecorder to work on your system, you might need to first install some dependencies, specifically liblsl and optionally Qt.
+
+### Windows
+
+The Windows archives ship with all required dependencies. If you suspect you are missing a dependency, try running [Dependencies.exe](https://github.com/lucasg/Dependencies/releases) then navigating to the LabRecorder.exe. It's important to launch Dependencies.exe from the same environment that you would use to launch this application: if you launch this application by double-clicking the executable in Windows' finder then do the same on the Dependencies.exe icon; if you launch this application in a Terminal window, then use that same Terminal to launch Dependencies.
 
 ### MacOS
 
-In the near future it will be necessary to use [homebrew](https://brew.sh/) to manage LSL Apps and their dependencies:
+In the near future, many LSL Apps (especially LabRecorder) will not ship with their dependencies and will look for the dependencies to be installed on the system. The easiest way to manage the dependencies is by using [homebrew](https://brew.sh/):
 * Install homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+* `brew install labstreaminglayer/tap/lsl`
+* `brew install qt`
+
+You can then install LabRecorder directly from homebrew: `brew install labrecorder`
+
+Run it with `open /usr/local/opt/labrecorder/LabRecorder/LabRecorder.app`
 
 ### Linux Ubuntu
 
-The Ubuntu releases do not typically ship with their dependencies so you will also have to download and install those:
-* Download and install the latest [liblsl-{version}-bionic_amd64.deb from its release page](https://github.com/sccn/liblsl/releases)
+The Ubuntu releases do not typically ship with their dependencies, so you must download and install those:
+* Download, extract, and install the latest [liblsl-{version}-{target}_amd64.deb from its release page](https://github.com/sccn/liblsl/releases)
     * We hope to make this available via a package manager soon.
-    * You can install liblsl directly by double clicking on it, or with with `sudo dpkg -i {filename}.deb`
+      * Quick ref Ubuntu 20.04: `curl -L https://github.com/sccn/liblsl/releases/download/v1.16.0/liblsl-1.16.0-bionic_amd64.deb -o liblsl.deb`
+      * Quick ref Ubuntu 22.04: `curl -L https://github.com/sccn/liblsl/releases/download/v1.16.0/liblsl-1.16.0-jammy_amd64.deb -o liblsl.deb`
+    * You can install liblsl directly by double-clicking on the deb, or with `sudo dpkg -i {filename}.deb` or `sudo apt install {filename}.deb`
 * See the bottom of the [lsl build env docs](https://labstreaminglayer.readthedocs.io/dev/build_env.html).
-    * For most cases, this will amount to `sudo apt-get install qtbase5-dev`
-
-## Downloading LabRecorder
-
-### MacOS
-
-* `brew install labstreaminglayer/tap/labrecorder`
-
-* Run it with `open /usr/local/opt/labrecorder/LabRecorder/LabRecorder.app`
-
-### Others
-
-Navigate to the [`releases` page](https://github.com/labstreaminglayer/App-LabRecorder/releases) and download the latest release for your platform.
+    * For most cases, this will amount to installing Qt and its dependencies:
+      * Ubuntu 18.xx or 20.xx: `sudo apt-get install build-essential qtbase5-dev libpugixml-dev`
+      * Ubuntu >= 22.04: `sudo apt-get install qt6-base-dev freeglut3-dev`
 
 # Usage
 
 The LabRecorder displays a list of currently present device streams under "Record from Streams". If you have turned on a device after you have already started the recorder, click the "Update" button to update the list (this takes ca. 2 seconds).
-> For testing you can use a "dummy" device from the `lslexamples` found in the [liblsl release assets](https://github.com/sccn/liblsl/releases) (for example SendData<!--, SendStringMarkers, and SendDataSimple-->).
+> For testing, you can use a "dummy" device from the `lslexamples` found in the [liblsl release assets](https://github.com/sccn/liblsl/releases) (for example SendData<!--, SendStringMarkers, and SendDataSimple-->).
 
 If you cannot see streams that are provided on another computer, read the section Network Troubleshooting on the NetworkConnectivity page.
 
-You can select which streams you want to record from and which not by checking the check boxes next to them.
+You can select which streams you want to record from and which not by checking the checkboxes next to them.
 > ![labrecorder-default.png](doc/labrecorder-default.png)
 
 Note that if you have multiple streams with the same name and host, it is impossible to check only 1. If any is checked then they will all be recorded.
