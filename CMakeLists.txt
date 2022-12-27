@@ -44,22 +44,15 @@ if (BUILD_GUI)
 	set(CMAKE_AUTOMOC ON)  # The later version of this in LSLCMake is somehow not enough.
 	set(CMAKE_AUTORCC ON)
 	set(CMAKE_AUTOUIC ON)
-	find_package(Qt6 COMPONENTS Core Widgets Network DBus)
-	if(NOT Qt6_FOUND)
-		# If we require 5.15 then we can use version-agnostic linking, but 5.15 not easily available on Ubuntu.
-		find_package(Qt5 COMPONENTS Core Widgets Network DBus REQUIRED)
-		add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
-		set(LSLAPP_QT_VER Qt5)
-	else()
-		qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE MANUAL_FINALIZATION)
-		set(LSLAPP_QT_VER Qt)
-	endif()
+	find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
+	find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Network DBus)
 endif(BUILD_GUI)
 
 ## Threads
 find_package(Threads REQUIRED)
 
 # Targets
+add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
 
 ## xdfwriter - stand alone library
 add_subdirectory(xdfwriter)
@@ -79,9 +72,10 @@ if (BUILD_GUI)
 	target_link_libraries(${PROJECT_NAME}
 		PRIVATE
 		xdfwriter
-		${LSLAPP_QT_VER}::Widgets
-		${LSLAPP_QT_VER}::Network
-		${LSLAPP_QT_VER}::DBus
+		Qt${QT_VERSION_MAJOR}::Core
+		Qt${QT_VERSION_MAJOR}::Widgets
+		Qt${QT_VERSION_MAJOR}::Network
+		Qt${QT_VERSION_MAJOR}::DBus
 		Threads::Threads
 		LSL::lsl
 	)
