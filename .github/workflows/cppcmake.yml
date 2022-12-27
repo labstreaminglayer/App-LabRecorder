@@ -29,9 +29,10 @@ jobs:
       fail-fast: false
       matrix:
         config:
+        - name: "ubuntu-22.04"
+          os: "ubuntu-latest"
         - name: "ubuntu-20.04"
           os: "ubuntu-20.04"
-          qt_ver: "6.3.0"
         - name: "ubuntu-18.04"
           os: "ubuntu-18.04"
           qt_ver: "5.12.12"
@@ -40,7 +41,7 @@ jobs:
           cmake_extra: "-T v142,host=x86"
           arch: "amd64"
           qt_arch: "win64_msvc2019_64"
-          qt_ver: "6.3.0"
+          qt_ver: "6.4.*"
         - name: "windows-x86"
           os: "windows-latest"
           cmake_extra: "-T v142,host=x86 -A Win32"
@@ -49,7 +50,6 @@ jobs:
           qt_ver: "5.15.2"
         - name: "macOS-10"
           os: "macos-10.15"
-          qt_ver: "6.3.0"
     steps:
     - uses: actions/checkout@v2
 
@@ -70,11 +70,24 @@ jobs:
       if: startsWith(matrix.config.os, 'macos-')
       run: brew install labstreaminglayer/tap/lsl
 
-    - name: Install Qt
+    - name: Install Qt (Window and Ubuntu bionic)
+      if: (matrix.config.os == 'windows-latest') || (matrix.config.os == 'ubuntu-18.04')
       uses: jurplel/install-qt-action@v2.14.0
       with:
          version: ${{ matrix.config.qt_ver }}
          arch: ${{ matrix.config.qt_arch }}
+
+    - name: Install Qt (Ubuntu focal)
+      if: matrix.config.os == 'ubuntu-20.04'
+      run: sudo apt install qtbase5-dev
+
+    - name: Install Qt (Ubuntu jammy)
+      if: matrix.config.os == 'ubuntu-22.04'
+      run: sudo apt install qt6-base-dev freeglut3-dev
+
+    - name: Install Qt (MacOS)
+      if: startsWith(matrix.config.os, 'macos-')
+      run: brew install qt
 
     - name: Configure CMake
       run: |
