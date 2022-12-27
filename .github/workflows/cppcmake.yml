@@ -41,7 +41,7 @@ jobs:
           cmake_extra: "-T v142,host=x86"
           arch: "amd64"
           qt_arch: "win64_msvc2019_64"
-          qt_ver: "6.4.*"
+          qt_ver: "6.4.0"
         - name: "windows-x86"
           os: "windows-latest"
           cmake_extra: "-T v142,host=x86 -A Win32"
