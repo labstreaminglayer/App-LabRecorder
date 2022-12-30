@@ -585,9 +585,12 @@ QString MainWindow::find_config_file(const char *filename) {
 	qInfo() << defaultCfgFilename;
 	QStringList cfgpaths;
 	cfgpaths << QDir::currentPath()
-			 << QStandardPaths::standardLocations(QStandardPaths::ConfigLocation) << exeInfo.path();
+			 << QStandardPaths::standardLocations(QStandardPaths::AppConfigLocation)
+			 << QStandardPaths::standardLocations(QStandardPaths::AppDataLocation)
+			 << exeInfo.path();
 	for (const auto &path : qAsConst(cfgpaths)) {
 		QString cfgfilepath = path + QDir::separator() + defaultCfgFilename;
+		qInfo() << cfgfilepath;
 		if (QFileInfo::exists(cfgfilepath)) return cfgfilepath;
 	}
 	QMessageBox::warning(this, "No config file not found",

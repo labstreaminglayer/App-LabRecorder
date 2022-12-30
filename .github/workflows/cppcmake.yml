@@ -30,7 +30,7 @@ jobs:
       matrix:
         config:
         - name: "ubuntu-22.04"
-          os: "ubuntu-latest"
+          os: "ubuntu-22.04"
         - name: "ubuntu-20.04"
           os: "ubuntu-20.04"
         - name: "ubuntu-18.04"
@@ -51,7 +51,7 @@ jobs:
         - name: "macOS-10"
           os: "macos-10.15"
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
@@ -72,7 +72,7 @@ jobs:
 
     - name: Install Qt (Window and Ubuntu bionic)
       if: (matrix.config.os == 'windows-latest') || (matrix.config.os == 'ubuntu-18.04')
-      uses: jurplel/install-qt-action@v2.14.0
+      uses: jurplel/install-qt-action@v3.0.0
       with:
          version: ${{ matrix.config.qt_ver }}
          arch: ${{ matrix.config.qt_arch }}
@@ -82,7 +82,7 @@ jobs:
       run: sudo apt install qtbase5-dev
 
     - name: Install Qt (Ubuntu jammy)
-      if: matrix.config.os == 'ubuntu-latest'
+      if: matrix.config.os == 'ubuntu-22.04'
       run: sudo apt install qt6-base-dev freeglut3-dev
 
     - name: Install Qt (MacOS)
@@ -99,6 +99,9 @@ jobs:
                 -DLSL_INSTALL_ROOT=$PWD/LSL/ \
                 -DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON \
                 ${{ matrix.config.cmake_extra }}
+           if [[ "${{ matrix.config.name }}" = ubuntu-* ]]; then
+               cmake -DLSL_UNIXFOLDERS=ON build
+           fi
 
     - name: make
       run: cmake --build build --config Release -j --target install
@@ -110,7 +113,7 @@ jobs:
            cmake -E remove_directory package/_CPack_Packages
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: pkg-${{ matrix.config.name }}
         path: package
