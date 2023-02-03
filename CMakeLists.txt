@@ -52,12 +52,13 @@ endif(BUILD_GUI)
 find_package(Threads REQUIRED)
 
 # Targets
-add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
 
 ## xdfwriter - stand alone library
 add_subdirectory(xdfwriter)
 
 if (BUILD_GUI)
+	add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
+
 	target_sources(${PROJECT_NAME} PRIVATE
 		src/main.cpp
 		src/mainwindow.cpp
