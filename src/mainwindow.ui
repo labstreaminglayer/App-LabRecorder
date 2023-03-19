@@ -207,7 +207,7 @@
         <item row="1" column="0">
          <widget class="QLabel" name="label_template">
           <property name="text">
-           <string>&lt;a href=&quot;https://github.com/labstreaminglayer/App-LabRecorder/doc/templates.md&quot;&gt;File Name/Template&lt;/a&gt;</string>
+           <string>&lt;a href=&quot;https://github.com/labstreaminglayer/App-LabRecorder/blob/master/doc/templates.md&quot;&gt;File Name/Template&lt;/a&gt;</string>
           </property>
           <property name="openExternalLinks">
            <bool>true</bool>
