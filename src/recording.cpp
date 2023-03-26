@@ -92,9 +92,9 @@ recording::recording(const std::string &filename, const std::vector<lsl::stream_
 		stream_threads_.emplace_back(
 			new std::thread(&recording::record_from_streaminfo, this, stream, true));
 	// create a resolve-and-record thread for each item in the watchlist
-	for (const auto &thread : watchfor)
+	for (const auto &query : watchfor)
 		stream_threads_.emplace_back(
-			new std::thread(&recording::record_from_query_results, this, thread));
+			new std::thread(&recording::record_from_query_results, this, query));
 	// create a boundary chunk writer thread
 	boundary_thread_ = std::make_unique<std::thread>(&recording::record_boundaries, this);
 }
