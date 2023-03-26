@@ -431,19 +431,26 @@ void MainWindow::startRecording() {
 					". Please check your permissions.");
 			return;
 		}
-
 		
 		std::vector<std::string> watchfor;
 		for (const QString &missing : qAsConst(missingStreams)) {
+            std::string query;
 			// Convert missing to query expected by lsl::resolve_stream
 			// name='BioSemi' and hostname=AASDFSDF
-			// QRegularExpression rx("(\S+)\s+\((\S+)\)");
-			QStringList name_host = missing.split(QRegExp("\\s+"));
-			std::string query = "name='" + name_host[0].toStdString() + "'";
-			if (name_host.size() > 1) {
-				std::string host = name_host[1].toStdString();
-				query += " and hostname='" + host.substr(1, host.length() - 2) + "'";
-			}
+			QRegularExpression re("(.+)\\s+\\((\\S+)\\)");
+            QRegularExpressionMatch match = re.match(missing);
+            if (match.hasMatch())
+            {
+                QString name = match.captured(1);
+                QString host = match.captured(2);
+                query = "name='" + match.captured(1).toStdString() + "'";
+                if (host.size() > 1) {
+                    query += " and hostname='" + host.toStdString() + "'";
+                }
+            } else {
+                // Regexp failed but we can try using the entire string as the stream name.
+                query = "name='" + missing.toStdString() + "'";
+            }
 			watchfor.push_back(query);
 		}
 		qInfo() << "Missing: " << missingStreams;
