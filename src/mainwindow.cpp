@@ -564,7 +564,7 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 	QString run = QString("%1").arg(ui->spin_counter->value(), 3, 10, QChar('0'));
 	fullfile.replace(counterPlaceholder(), run);
 
-	return fullfile;
+	return fullfile.trimmed();
 }
 
 /**
