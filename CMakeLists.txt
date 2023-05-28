@@ -5,7 +5,7 @@ project(LabRecorder
 	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
 	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
 	LANGUAGES C CXX
-	VERSION 1.16.3)
+	VERSION 1.16.4)
 
 # Needed for customized MacOSXBundleInfo.plist.in
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" ${CMAKE_MODULE_PATH})

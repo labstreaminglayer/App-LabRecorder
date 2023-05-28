@@ -13,8 +13,8 @@ on:
     types: ['created']
 
 env:
-  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.16.0/'
-  LSL_RELEASE: '1.16.0'
+  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download'
+  LSL_RELEASE: '1.16.2'
 
 defaults:
   run:
@@ -57,13 +57,13 @@ jobs:
       if: startsWith(matrix.config.os, 'ubuntu-')
       run: |
            sudo apt install -y libpugixml-dev
-           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
+           curl -L ${LSL_RELEASE_URL}/v${LSL_RELEASE}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
            sudo apt install ./liblsl.deb
 
     - name: Download liblsl (Windows)
       if: matrix.config.os == 'windows-latest'
       run: |
-           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-Win_${{ matrix.config.arch}}.zip -o liblsl.zip
+           curl -L ${LSL_RELEASE_URL}/v${LSL_RELEASE}/liblsl-${LSL_RELEASE}-Win_${{ matrix.config.arch}}.zip -o liblsl.zip
            7z x liblsl.zip -oLSL
 
     - name: Download liblsl (macOS)
