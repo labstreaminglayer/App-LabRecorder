@@ -13,8 +13,8 @@ on:
     types: ['created']
 
 env:
-  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download/v1.16.0/'
-  LSL_RELEASE: '1.16.0'
+  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download'
+  LSL_RELEASE: '1.16.2'
 
 defaults:
   run:
@@ -33,9 +33,6 @@ jobs:
           os: "ubuntu-22.04"
         - name: "ubuntu-20.04"
           os: "ubuntu-20.04"
-        - name: "ubuntu-18.04"
-          os: "ubuntu-18.04"
-          qt_ver: "5.12.12"
         - name: "windows-x64"
           os: "windows-latest"
           cmake_extra: "-T v142,host=x86"
@@ -48,8 +45,8 @@ jobs:
           arch: "i386"
           qt_arch: "win32_msvc2019"
           qt_ver: "5.15.2"
-        - name: "macOS-10"
-          os: "macos-10.15"
+        - name: "macOS-latest"
+          os: "macOS-latest"
     steps:
     - uses: actions/checkout@v3
 
@@ -57,21 +54,21 @@ jobs:
       if: startsWith(matrix.config.os, 'ubuntu-')
       run: |
            sudo apt install -y libpugixml-dev
-           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
+           curl -L ${LSL_RELEASE_URL}/v${LSL_RELEASE}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
            sudo apt install ./liblsl.deb
 
     - name: Download liblsl (Windows)
       if: matrix.config.os == 'windows-latest'
       run: |
-           curl -L ${LSL_RELEASE_URL}/liblsl-${LSL_RELEASE}-Win_${{ matrix.config.arch}}.zip -o liblsl.zip
+           curl -L ${LSL_RELEASE_URL}/v${LSL_RELEASE}/liblsl-${LSL_RELEASE}-Win_${{ matrix.config.arch}}.zip -o liblsl.zip
            7z x liblsl.zip -oLSL
 
     - name: Download liblsl (macOS)
       if: startsWith(matrix.config.os, 'macos-')
       run: brew install labstreaminglayer/tap/lsl
 
-    - name: Install Qt (Window and Ubuntu bionic)
-      if: (matrix.config.os == 'windows-latest') || (matrix.config.os == 'ubuntu-18.04')
+    - name: Install Qt (Window)
+      if: (matrix.config.os == 'windows-latest')
       uses: jurplel/install-qt-action@v3.0.0
       with:
          version: ${{ matrix.config.qt_ver }}
