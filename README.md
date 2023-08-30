@@ -18,7 +18,9 @@ For LabRecorder to work on your system, you might need to first install some dep
 
 ### Windows
 
-The Windows archives ship with all required dependencies. If you suspect you are missing a dependency, try running [Dependencies.exe](https://github.com/lucasg/Dependencies/releases) then navigating to the LabRecorder.exe. It's important to launch Dependencies.exe from the same environment that you would use to launch this application: if you launch this application by double-clicking the executable in Windows' finder then do the same on the Dependencies.exe icon; if you launch this application in a Terminal window, then use that same Terminal to launch Dependencies.
+The Windows archives ship with nearly all required dependencies. If you have not already installed it via another program, you may need to install the [Visual C++ Runtime Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+
+If you suspect you are missing a dependency, try running [DependenciesGui.exe](https://github.com/lucasg/Dependencies/releases) then navigating to the LabRecorder.exe. It's important to launch Dependencies.exe from the same environment that you would use to launch this application: if you launch this application by double-clicking the executable in Windows' finder then do the same on the Dependencies.exe icon; if you launch this application in a Terminal window, then use that same Terminal to launch Dependencies.
 
 ### MacOS
 
