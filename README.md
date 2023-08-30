@@ -1,6 +1,3 @@
-[![Travis Build Status](https://travis-ci.org/labstreaminglayer/App-LabRecorder.svg?branch=master)](https://travis-ci.org/labstreaminglayer/App-LabRecorder)
-[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/h3ag84tt5xhflhr7?svg=true)](https://ci.appveyor.com/project/cboulay/app-labrecorder)
-
 # Overview
 
 The LabRecorder is the default recording program that comes with LSL. It allows to record all streams on the lab network (or a subset) into a single file, with time synchronization between streams.
