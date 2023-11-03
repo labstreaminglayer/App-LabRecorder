@@ -49,6 +49,10 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		QMessageBox::about(this, "About this app", infostr);
 	});
 
+	// prevent accidental starts and stops via spacebar
+	ui->startButton->setFocusPolicy(Qt::NoFocus);
+	ui->stopButton->setFocusPolicy(Qt::NoFocus);
+
     // Signals for Remote Control Socket
 	connect(ui->rcsCheckBox, &QCheckBox::toggled, this, &MainWindow::rcsCheckBoxChanged);
 	connect(ui->rcsport, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::rcsportValueChangedInt);
