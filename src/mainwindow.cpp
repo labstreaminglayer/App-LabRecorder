@@ -49,7 +49,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 		QMessageBox::about(this, "About this app", infostr);
 	});
 
-	// prevent accidental starts and stops via spacebar
+	// prevent any accidental starts and stops via spacebar
 	ui->startButton->setFocusPolicy(Qt::NoFocus);
 	ui->stopButton->setFocusPolicy(Qt::NoFocus);
 
