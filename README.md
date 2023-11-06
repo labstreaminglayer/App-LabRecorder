@@ -8,7 +8,7 @@ The file format used by the LabRecorder is XDF. This is an open general-purpose 
 
 # Getting LabRecorder
 
-The [releases page](/releases) contains archives of past LabRecorder builds. Try downloading and installing an archive that matches your platform. Note for Ubuntu users: The deb will install LabRecorder to `/usr/LabRecorder` though we might change this to `/usr/local/bin/LabRecorder` in the future.
+The [releases page](../../releases) contains archives of past LabRecorder builds. Try downloading and installing an archive that matches your platform. Note for Ubuntu users: The deb will install LabRecorder to `/usr/LabRecorder` though we might change this to `/usr/local/bin/LabRecorder` in the future.
 
 If there are no archives matching your target platform, or the ones available don't run, then continue reading below. If the instructions don't help then please post an issue to the [repo's issues page](https://github.com/labstreaminglayer/App-LabRecorder/issues).
 
