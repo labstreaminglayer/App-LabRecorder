@@ -11,7 +11,7 @@ You will need to download and install:<BR/>
  * [The full LabStreamingLayer meta project](https://github.com/labstreaminglayer/labstreaminglayer) -> Clone (include --recursive flag) or download  
  * [Visual Studio Community 2017](https://imagine.microsoft.com/en-us/Catalog/Product/530)
  * [CMake 3.12.1](https://cmake.org/files/v3.12/)
- * [Qt 5.11.1](https://download.qt.io/archive/qt/5.11/) 
+ * [Qt 5.11.1](https://download.qt.io/new_archive/qt/5.11/5.11.1/) 
  * [Boost 1.65.1](https://sourceforge.net/projects/boost/files/boost-binaries/1.65.1/boost_1_65_1-msvc-14.1-32.exe/download)
 
 
