@@ -159,7 +159,7 @@ void MainWindow::load_config(QString filename) {
 			QString key = words.takeFirst() + ' ' + words.takeFirst();
 
 			int val = 0;
-			for (const auto &word : qAsConst(words)) {
+			for (const auto &word : std::as_const(words)) {
 				if (word == "post_clocksync") { val |= lsl::post_clocksync; }
 				if (word == "post_dejitter") { val |= lsl::post_dejitter; }
 				if (word == "post_monotonize") { val |= lsl::post_monotonize; }
@@ -341,7 +341,7 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 	// Then add knownStreams (only in list if resolved).
 	const QBrush good_brush(QColor(0, 128, 0)), bad_brush(QColor(255, 0, 0));
 	ui->streamList->clear();
-	for (auto& m : qAsConst(missingStreams)) {
+	for (auto& m : std::as_const(missingStreams)) {
 		auto *item = new QListWidgetItem(m, ui->streamList);
 		item->setCheckState(Qt::Checked);
 		item->setForeground(bad_brush);
@@ -433,7 +433,7 @@ void MainWindow::startRecording() {
 		}
 		
 		std::vector<std::string> watchfor;
-		for (const QString &missing : qAsConst(missingStreams)) {
+		for (const QString &missing : std::as_const(missingStreams)) {
             std::string query;
 			// Convert missing to query expected by lsl::resolve_stream
 			// name='BioSemi' and hostname=AASDFSDF
@@ -595,13 +595,17 @@ QString MainWindow::find_config_file(const char *filename) {
 			 << QStandardPaths::standardLocations(QStandardPaths::AppConfigLocation)
 			 << QStandardPaths::standardLocations(QStandardPaths::AppDataLocation)
 			 << exeInfo.path();
-	for (const auto &path : qAsConst(cfgpaths)) {
+	for (const auto &path : std::as_const(cfgpaths)) {
 		QString cfgfilepath = path + QDir::separator() + defaultCfgFilename;
 		qInfo() << cfgfilepath;
 		if (QFileInfo::exists(cfgfilepath)) return cfgfilepath;
 	}
-	QMessageBox::warning(this, "No config file not found",
-		QStringLiteral("No default config file could be found"), "Continue with default config");
+    QMessageBox msgBox;
+    msgBox.setWindowTitle("Config file not found");
+    msgBox.setText("Config file not found.");
+    msgBox.setInformativeText("Continuing with default config.");
+    msgBox.setStandardButtons(QMessageBox::Ok);
+    msgBox.exec();
 	return "";
 }
 
