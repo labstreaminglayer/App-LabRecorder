@@ -1,0 +1,7 @@
+repos:
+    - repo: https://github.com/adrienverge/yamllint
+      rev: v1.35.1
+      hooks:
+          - id: yamllint
+            args: [--strict, -c, .yamllint.yaml]
+            files: (.github/|.pre-commit-config.yaml|.yamllint.yaml)
