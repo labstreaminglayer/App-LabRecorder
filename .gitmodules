@@ -1,0 +1,3 @@
+[submodule "liblsl"]
+	path = liblsl
+	url = https://github.com/sccn/liblsl.git
