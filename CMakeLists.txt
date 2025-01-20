@@ -27,6 +27,9 @@ set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 
 ## LSL
 if(BUILD_LIBLSL_FROM_SOURCE)
+	set(LSL_BUILD_STATIC ON CACHE BOOL "Build the static liblsl" FORCE)
+	set(LSL_BUILD_SHARED OFF CACHE BOOL "Disable shared liblsl" FORCE)
+
 	set(LIBLSL_SOURCE_PATH
 		"${CMAKE_CURRENT_LIST_DIR}/liblsl"
 		CACHE PATH
@@ -34,9 +37,8 @@ if(BUILD_LIBLSL_FROM_SOURCE)
 	)
 	message(STATUS "Building liblsl from source at: ${LIBLSL_SOURCE_PATH}")
 	add_subdirectory("${LIBLSL_SOURCE_PATH}" liblsl_bin)
-	# This is an alias to match the usage below, so we can do:
-	#    target_link_libraries(... LSL::lsl)
-	add_library(LSL::lsl ALIAS lsl)
+    # ALIAS the static library so our later 'target_link_libraries(... LSL::lsl)' works
+    add_library(LSL::lsl ALIAS lsl)
 else()
 	find_package(LSL REQUIRED
 		HINTS ${LSL_INSTALL_ROOT}
