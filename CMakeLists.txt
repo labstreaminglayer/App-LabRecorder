@@ -5,7 +5,8 @@ project(LabRecorder
 	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
 	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
 	LANGUAGES C CXX
-	VERSION 1.16.4)
+	VERSION 1.16.5
+)
 
 # Needed for customized MacOSXBundleInfo.plist.in
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -15,18 +16,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED On)
 
 option(BUILD_GUI "Build the GUI, set to off for CLI only build" ON)
 
+option(BUILD_LIBLSL_FROM_SOURCE
+    "Build liblsl from a local subdirectory, rather than using find_package(LSL)" OFF
+)
+
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 
 # Dependencies
 
 ## LSL
-if(ANDROID)
-	set(LIBLSL_SOURCE_PATH "../../LSL/liblsl" CACHE STRING "Path to liblsl sources")
-
-	# force include liblsl as target to build with the android toolchain
-	# as path of the normal build process
-	add_subdirectory(${LIBLSL_SOURCE_PATH} liblsl_bin)
+if(BUILD_LIBLSL_FROM_SOURCE)
+	set(LIBLSL_SOURCE_PATH
+		"${CMAKE_CURRENT_LIST_DIR}/liblsl"
+		CACHE PATH
+		"Path to the local liblsl sources for building from source."
+	)
+	message(STATUS "Building liblsl from source at: ${LIBLSL_SOURCE_PATH}")
+	add_subdirectory("${LIBLSL_SOURCE_PATH}" liblsl_bin)
+	# This is an alias to match the usage below, so we can do:
+	#    target_link_libraries(... LSL::lsl)
 	add_library(LSL::lsl ALIAS lsl)
 else()
 	find_package(LSL REQUIRED
