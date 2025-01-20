@@ -1,129 +1,60 @@
-name: C/C++ CI
-
-on:
+name: build
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number }}-${{ github.event.ref }}
+  cancel-in-progress: true
+on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
   push:
-    branches: ['*']
-    tags:
-    - v*.*
+    branches: [main]
   pull_request:
-    branches:
-    - master
   release:
-    types: ['created']
-
-env:
-  LSL_RELEASE_URL: 'https://github.com/sccn/liblsl/releases/download'
-  LSL_RELEASE: '1.16.2'
+    types: [published]
 
 defaults:
   run:
     shell: bash
 
-# Check qt_ver on # https://download.qt.io/online/qtsdkrepository/
 jobs:
-  build:
-    name: ${{ matrix.config.name }}
-    runs-on: ${{ matrix.config.os }}
+  linux:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
-      fail-fast: false
-      matrix:
-        config:
-        - name: "ubuntu-22.04"
-          os: "ubuntu-22.04"
-        - name: "ubuntu-20.04"
-          os: "ubuntu-20.04"
-        - name: "windows-x64"
-          os: "windows-latest"
+    fail-fast: false
+    matrix:
+      include:
+        - os: ubuntu-latest
+          cmake_extra: "-DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON"
+        - os: ubuntu-22.04
+          cmake_extra: "-DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON"
+        - os: ubuntu-20.04
+          cmake_extra: "-DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON"
+        - os: macos-latest
+          cmake_extra: ""
+        - os: windows-latest
           cmake_extra: "-T v142,host=x86"
-          arch: "amd64"
-          qt_arch: "win64_msvc2019_64"
-          qt_ver: "6.4.0"
-        - name: "windows-x86"
-          os: "windows-latest"
-          cmake_extra: "-T v142,host=x86 -A Win32"
-          arch: "i386"
-          qt_arch: "win32_msvc2019"
-          qt_ver: "5.15.2"
-        - name: "macOS-latest"
-          os: "macOS-latest"
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Install liblsl (Ubuntu)
-      if: startsWith(matrix.config.os, 'ubuntu-')
-      run: |
-           sudo apt install -y libpugixml-dev
-           curl -L ${LSL_RELEASE_URL}/v${LSL_RELEASE}/liblsl-${LSL_RELEASE}-$(lsb_release -sc)_amd64.deb -o liblsl.deb
-           sudo apt install ./liblsl.deb
-
-    - name: Download liblsl (Windows)
-      if: matrix.config.os == 'windows-latest'
-      run: |
-           curl -L ${LSL_RELEASE_URL}/v${LSL_RELEASE}/liblsl-${LSL_RELEASE}-Win_${{ matrix.config.arch}}.zip -o liblsl.zip
-           7z x liblsl.zip -oLSL
-
-    - name: Download liblsl (macOS)
-      if: startsWith(matrix.config.os, 'macos-')
-      run: brew install labstreaminglayer/tap/lsl
-
-    - name: Install Qt (Window)
-      if: (matrix.config.os == 'windows-latest')
-      uses: jurplel/install-qt-action@v3.0.0
-      with:
-         version: ${{ matrix.config.qt_ver }}
-         arch: ${{ matrix.config.qt_arch }}
-
-    - name: Install Qt (Ubuntu focal)
-      if: matrix.config.os == 'ubuntu-20.04'
-      run: sudo apt install qtbase5-dev
-
-    - name: Install Qt (Ubuntu jammy)
-      if: matrix.config.os == 'ubuntu-22.04'
-      run: sudo apt install qt6-base-dev freeglut3-dev
-
-    - name: Install Qt (MacOS)
-      if: startsWith(matrix.config.os, 'macos-')
-      run: brew install qt
-
-    - name: Configure CMake
-      run: |
-           cmake --version
-           cmake -S . -B build \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=${PWD}/install \
-                -DCPACK_PACKAGE_DIRECTORY=${PWD}/package \
-                -DLSL_INSTALL_ROOT=$PWD/LSL/ \
-                -DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON \
-                ${{ matrix.config.cmake_extra }}
-           if [[ "${{ matrix.config.name }}" = ubuntu-* ]]; then
-               cmake -DLSL_UNIXFOLDERS=ON build
-           fi
-
-    - name: make
-      run: cmake --build build --config Release -j --target install
-
-    - name: package
-      run: |
-           export LD_LIBRARY_PATH=$Qt5_DIR/lib:$Qt6_DIR/lib:$LD_LIBRARY_PATH
-           cmake --build build --config Release -j --target package
-           cmake -E remove_directory package/_CPack_Packages
-
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: pkg-${{ matrix.config.name }}
-        path: package
-
-    - name: upload to release page
-      if: github.event_name == 'release'
-      env:
-        TOKEN: "token ${{ secrets.GITHUB_TOKEN }}"
-        UPLOAD_URL: ${{ github.event.release.upload_url }}
-      run: |
-              UPLOAD_URL=${UPLOAD_URL%\{*} # remove "{name,label}" suffix
-              for pkg in package/*.*; do
-                NAME=$(basename $pkg)
-                MIME=$(file --mime-type $pkg|cut -d ' ' -f2)
-                curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: $TOKEN" -H "Content-Type: $MIME" --data-binary @$pkg $UPLOAD_URL?name=$NAME
-              done
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: jurplel/install-qt-action@v3
+      - name: Configure CMake
+        run: |
+          cmake --version
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${PWD}/install \
+            -DCPACK_PACKAGE_DIRECTORY=${PWD}/package \
+            -DBUILD_LIBLSL_FROM_SOURCE=ON \
+            ${{ matrix.cmake_extra }}
+          cmake -DLSL_UNIXFOLDERS=ON build
+      - run: cmake --build build --config Release -j --target install
+      - name: Package
+        run: |
+          export LD_LIBRARY_PATH=$Qt5_DIR/lib:$Qt6_DIR/lib:$LD_LIBRARY_PATH
+          cmake --build build --config Release -j --target package
+          cmake -E remove_directory package/_CPack_Packages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.os }}
+          path: package
