@@ -17,4 +17,5 @@ cmake-build-release/
 liblsl.deb
 install-qt.sh
 .DS_Store
-
+# linting environment
+.venv
