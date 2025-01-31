@@ -48,7 +48,7 @@ jobs:
         - name: "macOS-latest"
           os: "macOS-latest"
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install liblsl (Ubuntu)
       if: startsWith(matrix.config.os, 'ubuntu-')
@@ -69,7 +69,7 @@ jobs:
 
     - name: Install Qt (Window)
       if: (matrix.config.os == 'windows-latest')
-      uses: jurplel/install-qt-action@v3.0.0
+      uses: jurplel/install-qt-action@v4
       with:
          version: ${{ matrix.config.qt_ver }}
          arch: ${{ matrix.config.qt_arch }}
@@ -110,7 +110,7 @@ jobs:
            cmake -E remove_directory package/_CPack_Packages
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pkg-${{ matrix.config.name }}
         path: package
