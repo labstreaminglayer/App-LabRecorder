@@ -166,25 +166,45 @@ set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
 
 if(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
-	# Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path.
-	#  Unfortunately, macdeployqt does not seem to traverse @loader_path dependencies.
-	#  So we are forced to call `fixup_bundle`. For now, we only do this if homebrew is present
-	#  because that seems to be where the bad dependency is coming from.
-	# Note that fixup_bundle also destroys the codesigning so we have to redo that.
- 	# TODO: Checkout supercollider apple-specific stuff, e.g.: https://github.com/supercollider/supercollider/blob/develop/CMakeLists.txt#L260-L262
-	execute_process(
+    # Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path.
+    #  Unfortunately, macdeployqt does not seem to traverse @loader_path dependencies.
+    #  So we are forced to call `fixup_bundle`. For now, we only do this if homebrew is present
+    #  because that seems to be where the bad dependency is coming from.
+    # Note that fixup_bundle also destroys the codesigning so we have to redo that.
+  	# TODO: Checkout supercollider apple-specific stuff, e.g.: https://github.com/supercollider/supercollider/blob/develop/CMakeLists.txt#L260-L262
+
+    # Detect Apple Silicon
+    execute_process(
+        COMMAND uname -m
+        OUTPUT_VARIABLE ARCH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    
+    # Check for Homebrew
+    execute_process(
         COMMAND brew --prefix
         RESULT_VARIABLE BREW_LIB
         OUTPUT_VARIABLE BREW_PREFIX
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-	if (BREW_LIB EQUAL 0 AND EXISTS "${BREW_PREFIX}")
-		install(CODE
-				"
-					include(BundleUtilities)
-					fixup_bundle(\"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\" \"\" \"${BREW_PREFIX}/lib\")
-					execute_process(COMMAND codesign --force --deep --sign - ${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app)
-				"
-			)
-	endif()
+    
+    if (BREW_LIB EQUAL 0 AND EXISTS "${BREW_PREFIX}")
+        install(CODE
+            "
+                include(BundleUtilities)
+                fixup_bundle(\"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\" \"\" \"${BREW_PREFIX}/lib\")
+                
+                # Fix Qt plugin references specifically for Apple Silicon
+                if(\"${ARCH}\" STREQUAL \"arm64\")
+                    execute_process(COMMAND install_name_tool -change @rpath/QtGui.framework/Versions/A/QtGui @executable_path/../Frameworks/QtGui
+                        \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app/Contents/PlugIns/platforms/libqcocoa.dylib\")
+                endif()
+                
+                # Re-sign with the same approach the project already uses
+				execute_process(COMMAND codesign --remove-signature \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\")
+				execute_process(COMMAND find \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app/Contents/Frameworks\" -type f -exec codesign --force --sign - {} \\; 2>/dev/null || true)
+				execute_process(COMMAND find \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app/Contents/PlugIns\" -type f -exec codesign --force --sign - {} \\; 2>/dev/null || true)
+				execute_process(COMMAND codesign --force --deep --sign - \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\")            "
+        )
+    endif()
 endif(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
