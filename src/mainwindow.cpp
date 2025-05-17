@@ -489,6 +489,39 @@ void MainWindow::selectAllStreams() {
 	}
 }
 
+
+void MainWindow::selectRegexStreams(const QString& regex_pattern) {
+	// make filter from regex pattern
+	QRegExp regex_filter(regex_pattern);
+
+	// iterate over the UI checkboxes
+	for (int i = 0; i < ui->streamList->count(); i++) {
+		QListWidgetItem* item = ui->streamList->item(i);
+		QString streamName = item->text();
+
+		// Select entries that match
+		if (regex_filter.exactMatch(streamName))
+			item->setCheckState(Qt::Checked);
+	}
+}
+
+void MainWindow::selectStreams(const QString& search_str) {
+	// Convert the search string to lowercase for case-insensitive matching
+	QString lowerSearchStr = search_str.toLower();
+
+	// Iterate over the UI checkboxes
+	for (int i = 0; i < ui->streamList->count(); i++) {
+		QListWidgetItem* item = ui->streamList->item(i);
+		QString streamName = item->text().toLower(); // Convert the stream name to lowercase
+
+		// Select entries that match (case-insensitive)
+		if (streamName.contains(lowerSearchStr)) {
+			item->setCheckState(Qt::Checked);
+		}
+	}
+}
+
+
 void MainWindow::selectNoStreams() {
 	for (int i = 0; i < ui->streamList->count(); i++) {
 		QListWidgetItem *item = ui->streamList->item(i);
@@ -636,6 +669,8 @@ void MainWindow::enableRcs(bool bEnable) {
 		connect(rcs.get(), &RemoteControlSocket::filename, this, &MainWindow::rcsUpdateFilename);
 		connect(rcs.get(), &RemoteControlSocket::select_all, this, &MainWindow::selectAllStreams);
 		connect(rcs.get(), &RemoteControlSocket::select_none, this, &MainWindow::selectNoStreams);
+		connect(rcs.get(), &RemoteControlSocket::select_stream, this, &MainWindow::selectStreams);
+		connect(rcs.get(), &RemoteControlSocket::select_stream_regex, this, &MainWindow::selectRegexStreams);
 	}
 	bool oldState = ui->rcsCheckBox->blockSignals(true);
 	ui->rcsCheckBox->setChecked(bEnable);
@@ -653,7 +688,8 @@ void MainWindow::rcsStartRecording() {
 	// since we want to avoid a pop-up window when streams are missing or unchecked,
 	// we'll check all the streams and start recording
 	hideWarnings = true;
-	selectAllStreams();
+	// Due to the select all function, I assumed it made no sense to force recording all
+	//selectAllStreams();
 	startRecording();
 }
 
