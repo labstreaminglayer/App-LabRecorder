@@ -14,6 +14,27 @@ You will need to download and install:<BR/>
  * [Qt 5.11.1](https://download.qt.io/archive/qt/5.11/) 
  * [Boost 1.65.1](https://sourceforge.net/projects/boost/files/boost-binaries/1.65.1/boost_1_65_1-msvc-14.1-32.exe/download)
 
+# Buiild liblsl
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX="build/install"
+cmake --build build -j --config Release --target install
+```
+
+```
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DLSL_INSTALL_ROOT="C:/Users/pho/repos/EmotivEpoc/LSL_REPOS/LSL/liblsl/out/install/x64-Debug" -DQT_DIR="L:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5" -DQt5_DIR="L:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5"
+labstreaminglayer\build>cmake --build . --config Release --target install
+
+
+## Unused:
+-DQt5_DIR="L:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5"
+ -DBOOST_ROOT="C:\Users\pho\lib\boost_1_65_1"
+
+
+
+```
+
+### NOTE 2025-09-10 - Had to substantially modify CMakeLists.txt by commenting out the missing `LSLGenerateCPackConfig` and `installLSLApp` commands
+
 
 From Visual Studio:<BR/> 
  * File -> Open -> CMake -> labstreaminglayer/CMakeLists.txt
@@ -77,7 +98,7 @@ You will need to download and install:<BR/>
  * [Boost 1.65.1](https://sourceforge.net/projects/boost/files/boost-binaries/1.65.1/boost_1_65_1-msvc-14.1-32.exe/download)
 
 From the command line, from the labstreaminglayer folder:
- * labstreaminglayer\build>cmake .. -G "Visual Studio 14 2015" -DQt5_DIR="C:/Qt/5.11.1/msvc2015/lib/cmake/Qt5" -DBOOST_ROOT=C:\boost\boost_1_65_1 -DLSLAPPS_LabRecorder=ON
+ * labstreaminglayer\build>cmake .. -G "Visual Studio 17 2022" -DQt5_DIR="C:/Qt/5.11.1/msvc2015/lib/cmake/Qt5" -DBOOST_ROOT=C:\boost\boost_1_65_1 -DLSLAPPS_LabRecorder=ON
 
  * labstreaminglayer\build>cmake --build . --config Release --target install
 

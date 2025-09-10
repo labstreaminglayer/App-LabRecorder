@@ -19,6 +19,13 @@ set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 
 # Dependencies
+# list(APPEND CMAKE_MODULE_PATH "C:/Users/pho/repos/EmotivEpoc/LSL_REPOS/LSL/liblsl/build/install/lib/cmake/LSL")
+list(APPEND CMAKE_MODULE_PATH "C:/Users/pho/repos/EmotivEpoc/LSL_REPOS/LSL/liblsl/out/install/x64-Debug/lib/cmake/LSL")
+
+
+# Include the LSLCMake.cmake file, just for testing.
+# This doesn't do much for us now that we don't use installLSLApp() anymore.
+# include("${LSL_PATH}/LSLCMake.cmake")
 
 ## LSL
 if(ANDROID)
@@ -96,23 +103,31 @@ target_link_libraries(LabRecorderCLI
 	LSL::lsl
 )
 
-installLSLApp(xdfwriter)
-installLSLApp(testxdfwriter)
-installLSLApp(LabRecorderCLI)
-if (BUILD_GUI)
-	installLSLApp(${PROJECT_NAME})
-	installLSLAuxFiles(${PROJECT_NAME}
-		${PROJECT_NAME}.cfg
-		LICENSE
-		README.md
-	)
-else()
-	installLSLAuxFiles(LabRecorderCLI
-		${PROJECT_NAME}.cfg
-		LICENSE
-		README.md
-	)
-endif(BUILD_GUI)
+# if((DEFINED LSL_INSTALL) AND (NOT LSL_INSTALL))
+# 	return()
+# endif()
+
+if((DEFINED installLSLApp))
+	installLSLApp(xdfwriter)
+	installLSLApp(testxdfwriter)
+	installLSLApp(LabRecorderCLI)
+	if (BUILD_GUI)
+		installLSLApp(${PROJECT_NAME})
+		installLSLAuxFiles(${PROJECT_NAME}
+			${PROJECT_NAME}.cfg
+			LICENSE
+			README.md
+		)
+	else()
+		installLSLAuxFiles(LabRecorderCLI
+			${PROJECT_NAME}.cfg
+			LICENSE
+			README.md
+		)
+	endif(BUILD_GUI)
+endif()
+
+
 
 
 if (WIN32)
@@ -163,7 +178,12 @@ if(Qt6_FOUND AND BUILD_GUI)
 endif(Qt6_FOUND AND BUILD_GUI)
 
 set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
-LSLGenerateCPackConfig()
+
+
+if((DEFINED LSLGenerateCPackConfig))
+	LSLGenerateCPackConfig()
+endif((DEFINED LSLGenerateCPackConfig))
+
 
 if(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
     # Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path.
