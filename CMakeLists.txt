@@ -64,7 +64,7 @@ find_package(Threads REQUIRED)
 add_subdirectory(xdfwriter)
 
 if (BUILD_GUI)
-	add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
+	add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${app_icon_resource_windows})
 
 	target_sources(${PROJECT_NAME} PRIVATE
 		src/main.cpp
