@@ -16,16 +16,37 @@ You will need to download and install:<BR/>
 
 # Buiild liblsl
 ```powershell
+cd ../
+mkdir LSL
+cd LSL
+git clone --recurse-submodules https://github.com/sccn/liblsl.git
+## checks out liblsl at '../LSL/liblsl'
+cd liblsl
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX="build/install"
 cmake --build build -j --config Release --target install
-```
 
 ```
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DLSL_INSTALL_ROOT="C:/Users/pho/repos/EmotivEpoc/LSL_REPOS/LSL/liblsl/out/install/x64-Debug" -DQT_DIR="L:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5" -DQt5_DIR="L:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5"
-labstreaminglayer\build>cmake --build . --config Release --target install
+
+## Build LabRecorder
+
+```
+# Qt5
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DLSL_INSTALL_ROOT="C:/Users/pho/repos/EmotivEpoc/LSL_REPOS/LSL/liblsl/out/install/x64-Debug" -DQT_DIR="L:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5" -DQt5_DIR="L:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5" -DCMAKE_INSTALL_PREFIX="build/install"
+
+#Qt6
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DLSL_INSTALL_ROOT="C:/Users/pho/repos/EmotivEpoc/LSL_REPOS/LSL/liblsl/out/install/x64-Debug" -DQT_DIR="L:\Qt\6.8.1\msvc2022_64\lib\cmake\Qt6" -DQt6_DIR="L:\Qt\6.8.1\msvc2022_64\lib\cmake\Qt6" -DCMAKE_INSTALL_PREFIX="build/install"
+
+
+
+
+cmake --build . --config Release --target install
+
+cmake --build build -j --config Release --target install
 
 
 ## Unused:
+-DQt6_DIR="L:\Qt\6.8.1\msvc2022_64\lib\cmake\Qt6"
+
 -DQt5_DIR="L:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5"
  -DBOOST_ROOT="C:\Users\pho\lib\boost_1_65_1"
 
