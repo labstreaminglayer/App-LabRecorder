@@ -72,6 +72,21 @@ CPACK_GENERATOR:STRING=TBZ2
 CMAKE_BUILD_TYPE:STRING=
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### App-LabRecorder
 TIMEN
 Ended up downloading the latest CMake from the website, and then using the GUI to build an XCode project.
@@ -82,6 +97,24 @@ Ended up downloading the latest CMake from the website, and then using the GUI t
 cmake --build . --config Release --target install
 
 ```
+
+##### rMBP-PinkDot
+Install Qt6 directly from the Qt Online Installer application, installed to `~/Qt`
+```
+
+Commandline options:
+-DQt6_DIR:PATH="/Users/pho/Qt/6.9.2/macos/lib/cmake/Qt6" -DQT_DIR:PATH="/Users/pho/Qt/6.9.2/macos/lib/cmake/Qt6" 
+
+
+Cache file:
+Qt6_DIR:PATH=/Users/pho/Qt/6.9.2/macos/lib/cmake/Qt6
+QT_DIR:PATH=/Users/pho/Qt/6.9.2/macos/lib/cmake/Qt6
+
+```
+- Used CMake GUI tool to configure and generate a Unix Makefile project
+- built using `make`
+
+
 
 ### NOTE 2025-09-10 - Had to substantially modify CMakeLists.txt by commenting out the missing `LSLGenerateCPackConfig` and `installLSLApp` commands
 
