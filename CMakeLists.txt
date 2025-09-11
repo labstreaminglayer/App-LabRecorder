@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-#set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum MacOS deployment version")
+set(CMAKE_OSX_DEPLOYMENT_TARGET "12.4" CACHE STRING "Minimum MacOS deployment version")
 
 project(LabRecorder
 	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
@@ -22,6 +22,7 @@ set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 # list(APPEND CMAKE_MODULE_PATH "C:/Users/pho/repos/EmotivEpoc/LSL_REPOS/LSL/liblsl/build/install/lib/cmake/LSL")
 list(APPEND CMAKE_MODULE_PATH "C:/Users/pho/repos/EmotivEpoc/LSL_REPOS/LSL/liblsl/out/install/x64-Debug/lib/cmake/LSL")
 
+set_source_files_properties("./res/app.icns" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
 # Include the LSLCMake.cmake file, just for testing.
 # This doesn't do much for us now that we don't use installLSLApp() anymore.
