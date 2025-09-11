@@ -54,6 +54,35 @@ cmake --build build -j --config Release --target install
 
 ```
 
+#TODO 2025-09-11 16:18: - [ ] macOS - rMBP 2023 16
+
+```
+/Users/pho/libs/labstreaminglayer/build/LSL/liblsl
+Commandline options:
+-DLSLAPPS_XDFBrowser:BOOL="0" -DLSL_DIR:PATH="/Users/pho/libs/labstreaminglayer/build/LSL/liblsl" -DQt6_DIR:PATH="/usr/local/lib/cmake/Qt6" -DBoost_INCLUDE_DIR:PATH="/Users/pho/libs/boost_1_84_0" -DMACDEPLOYQT_EXECUTABLE:FILEPATH="/usr/local/bin/macdeployqt" -DCPACK_GENERATOR:STRING="TBZ2" -DCMAKE_BUILD_TYPE:STRING="" 
+
+
+Cache file:
+LSLAPPS_XDFBrowser:BOOL=0
+LSL_DIR:PATH=/Users/pho/libs/labstreaminglayer/build/LSL/liblsl
+Qt6_DIR:PATH=/usr/local/lib/cmake/Qt6
+Boost_INCLUDE_DIR:PATH=/Users/pho/libs/boost_1_84_0
+MACDEPLOYQT_EXECUTABLE:FILEPATH=/usr/local/bin/macdeployqt
+CPACK_GENERATOR:STRING=TBZ2
+CMAKE_BUILD_TYPE:STRING=
+
+```
+### App-LabRecorder
+TIMEN
+Ended up downloading the latest CMake from the website, and then using the GUI to build an XCode project.
+```
+-DCMAKE_OSX_DEPLOYMENT_TARGET:STRING="" -DCMAKE_OSX_ARCHITECTURES:STRING="" 
+
+
+cmake --build . --config Release --target install
+
+```
+
 ### NOTE 2025-09-10 - Had to substantially modify CMakeLists.txt by commenting out the missing `LSLGenerateCPackConfig` and `installLSLApp` commands
 
 
