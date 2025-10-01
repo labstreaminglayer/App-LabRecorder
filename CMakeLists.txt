@@ -20,6 +20,8 @@ set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 
 # Dependencies
 
+set_source_files_properties("./res/app.icns" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+
 ## LSL
 if(ANDROID)
 	set(LIBLSL_SOURCE_PATH "../../LSL/liblsl" CACHE STRING "Path to liblsl sources")
@@ -57,7 +59,7 @@ find_package(Threads REQUIRED)
 add_subdirectory(xdfwriter)
 
 if (BUILD_GUI)
-	add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
+	add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${app_icon_resource_windows})
 
 	target_sources(${PROJECT_NAME} PRIVATE
 		src/main.cpp
