@@ -564,6 +564,15 @@ QString MainWindow::replaceFilename(QString fullfile) const {
 	QString run = QString("%1").arg(ui->spin_counter->value(), 3, 10, QChar('0'));
 	fullfile.replace(counterPlaceholder(), run);
 
+	// ISO8601 UTC datetime with milliseconds
+	// Get current UTC once
+	QDateTime nowUtc = QDateTime::currentDateTimeUtc();
+	// Datetime replacements (filename-safe)
+	// QString datetime = QDateTime::currentDateTimeUtc().toString("yyyy-MM-ddTHH--mm--ss.zzzZ"); -- with double-hyphen convention as mentioned on wikipedia: https://en.wikipedia.org/wiki/ISO_8601
+	fullfile.replace("%datetime", nowUtc.toString("yyyy-MM-ddTHHmmss.zzzZ"));
+	fullfile.replace("%date", nowUtc.toString("yyyy-MM-dd"));
+	fullfile.replace("%time", nowUtc.toString("HHmmss.zzzZ"));
+
 	return fullfile.trimmed();
 }
 
