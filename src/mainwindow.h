@@ -19,18 +19,24 @@ class recording;
 class RemoteControlSocket;
 
 class StreamItem {
-	
+
 public:
 	StreamItem(std::string stream_name, std::string stream_type, std::string source_id,
-		std::string hostname, bool required)
-		: name(stream_name), type(stream_type), id(source_id), host(hostname), checked(required) {}
-	
-	QString listName() { return QString::fromStdString(name + " (" + host + ")"); }
+		std::string hostname, bool required, bool secure = false, std::string fingerprint = "")
+		: name(stream_name), type(stream_type), id(source_id), host(hostname),
+		  checked(required), security_enabled(secure), security_fingerprint(fingerprint) {}
+
+	QString listName() {
+		QString prefix = security_enabled ? QString::fromUtf8("\xF0\x9F\x94\x92 ") : QString(""); // Lock emoji
+		return prefix + QString::fromStdString(name + " (" + host + ")");
+	}
 	std::string name;
 	std::string type;
 	std::string id;
 	std::string host;
 	bool checked;
+	bool security_enabled;
+	std::string security_fingerprint;
 };
 
 

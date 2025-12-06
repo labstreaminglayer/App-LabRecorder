@@ -284,7 +284,8 @@ void MainWindow::save_config(QString filename) {
 }
 
 QString info_to_listName(const lsl::stream_info& info) {
-	return QString::fromStdString(info.name() + " (" + info.hostname() + ")");
+	QString prefix = info.security_enabled() ? QString::fromUtf8("\xF0\x9F\x94\x92 ") : QString(""); // Lock emoji
+	return prefix + QString::fromStdString(info.name() + " (" + info.hostname() + ")");
 }
 
 /**
@@ -304,7 +305,8 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 		}
 		if (!known) {
 			bool found = missingStreams.contains(info_to_listName(s));
-			knownStreams << StreamItem(s.name(), s.type(), s.source_id(), s.hostname(), found);
+			knownStreams << StreamItem(s.name(), s.type(), s.source_id(), s.hostname(), found,
+				s.security_enabled(), s.security_fingerprint());
 			if (found) { missingStreams.remove(info_to_listName(s)); }
 		}
 	}
