@@ -45,7 +45,16 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->actionAbout, &QAction::triggered, this, [this]() {
 		QString infostr = QStringLiteral("LSL library version: ") +
 						  QString::number(lsl::library_version()) +
-						  "\nLSL library info:" + lsl::library_info();
+						  "\nLSL library info: " + lsl::library_info();
+		// Add security version information if available
+		if (lsl::is_secure_build()) {
+			infostr += "\n\nSecurity: Enabled";
+			infostr += "\nBase version: " + QString(lsl::base_version());
+			infostr += "\nSecurity version: " + QString(lsl::security_version());
+			infostr += "\nFull version: " + QString(lsl::full_version());
+		} else {
+			infostr += "\n\nSecurity: Not available";
+		}
 		QMessageBox::about(this, "About this app", infostr);
 	});
 
