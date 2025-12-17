@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <deque>
 #include <iostream>
 #include <list>
 #include <lsl_cpp.h>
@@ -43,6 +44,12 @@ using offset_list = std::list<std::pair<double, double>>;
 // a map from streamid to offset_list
 using offset_lists = std::map<streamid_t, offset_list>;
 
+// Structure to hold stream errors
+struct StreamError {
+	std::string stream_name;
+	std::string error_message;
+	bool is_security_error;
+};
 
 /**
  * A recording process using the lab streaming layer.
@@ -74,7 +81,17 @@ public:
 
 	void requestStop() noexcept;
 
+	/// Get and clear any errors that occurred during recording
+	/// Thread-safe, returns errors since last call
+	std::vector<StreamError> getErrors();
+
+	/// Check if there are any errors without removing them
+	bool hasErrors() const;
+
 private:
+	/// Report an error from a recording thread
+	void reportError(const std::string& stream_name, const std::string& error_msg);
+
 	// the file stream
 	XDFWriter file_; // the file output stream
 	// static information
@@ -103,6 +120,10 @@ private:
 	offset_lists
 		offset_lists_; // the clock offset lists for each stream (to be written into the footer)
 	std::mutex offset_mut_; // a mutex to protect the offset lists
+
+	// error reporting for the UI
+	std::deque<StreamError> errors_;
+	mutable std::mutex error_mut_;
 
 	// data for shutdown / final joining
 	std::list<thread_p> stream_threads_; // the spawned stream handling threads

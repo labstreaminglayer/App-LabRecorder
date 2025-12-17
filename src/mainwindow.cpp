@@ -103,8 +103,35 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	load_config(cfgfilepath);
 }
 
-void MainWindow::statusUpdate() const {
+void MainWindow::statusUpdate() {
 	if (currentRecording) {
+		// Check for errors from the recording threads
+		auto errors = currentRecording->getErrors();
+		for (const auto& error : errors) {
+			QString errorMsg = QString::fromStdString(error.error_message);
+			QString streamName = QString::fromStdString(error.stream_name);
+
+			if (error.is_security_error) {
+				// Extract the most relevant part of the security error message
+				QString displayMsg = errorMsg;
+				if (errorMsg.contains("403")) {
+					// Extract the 403 message for cleaner display
+					int idx = errorMsg.indexOf("403");
+					if (idx >= 0) {
+						displayMsg = errorMsg.mid(idx);
+					}
+				}
+				// Show security errors prominently
+				QMessageBox::warning(const_cast<MainWindow*>(this),
+					"Security Error - " + streamName,
+					"Failed to connect to stream '" + streamName + "':\n\n" + displayMsg +
+					"\n\nMake sure all devices have matching security configurations.");
+			} else {
+				// Log non-security errors to console
+				qWarning() << "Stream error for" << streamName << ":" << errorMsg;
+			}
+		}
+
 		auto elapsed = static_cast<int>(lsl::local_clock() - startTime);
 		QString recFilename = replaceFilename(QDir::cleanPath(ui->lineEdit_template->text()));
 		auto fileinfo = QFileInfo(QDir::cleanPath(ui->rootEdit->text()) + '/' + recFilename);
@@ -293,8 +320,8 @@ void MainWindow::save_config(QString filename) {
 }
 
 QString info_to_listName(const lsl::stream_info& info) {
-	QString prefix = info.security_enabled() ? QString::fromUtf8("\xF0\x9F\x94\x92 ") : QString(""); // Lock emoji
-	return prefix + QString::fromStdString(info.name() + " (" + info.hostname() + ")");
+	QString suffix = info.security_enabled() ? QString::fromUtf8(" \xF0\x9F\x94\x92") : QString(""); // Lock emoji at end
+	return QString::fromStdString(info.name() + " (" + info.hostname() + ")") + suffix;
 }
 
 /**
@@ -402,6 +429,49 @@ void MainWindow::startRecording() {
 				msgBox.setInformativeText("Do you want to start recording anyway?");
 				msgBox.setDefaultButton(QMessageBox::No);
 				if (msgBox.exec() != QMessageBox::Yes) return;
+			}
+
+			// Check for security mismatches between local config and selected streams
+			bool localSecurityEnabled = lsl::local_security_enabled();
+			QStringList securityMismatchStreams;
+			for (const auto& stream : requestedAndAvailableStreams) {
+				bool streamSecure = stream.security_enabled();
+				if (streamSecure && !localSecurityEnabled) {
+					// Stream requires security but local security is not enabled
+					securityMismatchStreams.append(QString::fromStdString(stream.name()));
+				} else if (!streamSecure && localSecurityEnabled) {
+					// Stream is insecure but local security is enabled
+					securityMismatchStreams.append(QString::fromStdString(stream.name()) + " (insecure)");
+				}
+			}
+			if (!securityMismatchStreams.isEmpty()) {
+				QString errorMsg;
+				// Format stream names as a bulleted list with blue color
+				QString streamList;
+				for (const auto& s : securityMismatchStreams) {
+					streamList += "&nbsp;&nbsp;&bull; <span style='color: #0066cc;'>" + s + "</span><br>";
+				}
+				if (!localSecurityEnabled) {
+					errorMsg = "The following streams require security, but Lab Recorder does not have "
+							   "security credentials configured:<br><br>" + streamList +
+							   "<br>To fix this:<br>"
+							   "&nbsp;&nbsp;1. Run 'lsl-keygen' to generate credentials, or<br>"
+							   "&nbsp;&nbsp;2. Import shared credentials from an authorized device<br><br>"
+							   "<span style='color: red; font-weight: bold;'>Recording cannot proceed with mismatched security settings.</span>";
+				} else {
+					errorMsg = "Security mismatch detected for the following streams:<br><br>" +
+							   streamList +
+							   "<br>All devices must have the same security configuration "
+							   "(either all secure or all insecure).<br><br>"
+							   "<span style='color: red; font-weight: bold;'>Recording cannot proceed with mismatched security settings.</span>";
+				}
+				QMessageBox msgBox(this);
+				msgBox.setWindowTitle("Security Mismatch");
+				msgBox.setIcon(QMessageBox::Critical);
+				msgBox.setTextFormat(Qt::RichText);
+				msgBox.setText(errorMsg);
+				msgBox.exec();
+				return;
 			}
 		}
 

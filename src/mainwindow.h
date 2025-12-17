@@ -48,7 +48,7 @@ public:
 	~MainWindow() noexcept override;
 
 private slots:
-	void statusUpdate(void) const;
+	void statusUpdate(void);
 	void closeEvent(QCloseEvent *ev) override;
 	void blockSelected(const QString &block);
 	std::vector<lsl::stream_info> refreshStreams(void);

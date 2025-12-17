@@ -121,6 +121,30 @@ void recording::requestStop() noexcept
 	shutdown_ = true;
 }
 
+void recording::reportError(const std::string& stream_name, const std::string& error_msg) {
+	std::lock_guard<std::mutex> lock(error_mut_);
+	// Check if this is a security-related error
+	bool is_security = (error_msg.find("403") != std::string::npos) ||
+					   (error_msg.find("security") != std::string::npos) ||
+					   (error_msg.find("Security") != std::string::npos) ||
+					   (error_msg.find("encryption") != std::string::npos) ||
+					   (error_msg.find("public key") != std::string::npos) ||
+					   (error_msg.find("Public key") != std::string::npos);
+	errors_.push_back({stream_name, error_msg, is_security});
+}
+
+std::vector<StreamError> recording::getErrors() {
+	std::lock_guard<std::mutex> lock(error_mut_);
+	std::vector<StreamError> result(errors_.begin(), errors_.end());
+	errors_.clear();
+	return result;
+}
+
+bool recording::hasErrors() const {
+	std::lock_guard<std::mutex> lock(error_mut_);
+	return !errors_.empty();
+}
+
 void recording::record_from_query_results(const std::string &query) {
 	try {
 		std::set<std::string> known_uids;		// set of previously seen stream uid's
@@ -154,7 +178,9 @@ void recording::record_from_query_results(const std::string &query) {
 		// wait for all our threads to join
 		timed_join_or_detach(threads, max_join_wait);
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_from_query_results thread: " << e.what() << std::endl;
+		std::string error_msg = e.what();
+		std::cout << "Error in the record_from_query_results thread: " << error_msg << std::endl;
+		reportError("query: " + query, error_msg);
 	}
 }
 
@@ -277,7 +303,9 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			throw;
 		}
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_from_streaminfo thread: " << e.what() << std::endl;
+		std::string error_msg = e.what();
+		std::cout << "Error in the record_from_streaminfo thread: " << error_msg << std::endl;
+		reportError(src.name(), error_msg);
 	}
 }
 
