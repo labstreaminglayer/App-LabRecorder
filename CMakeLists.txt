@@ -1,210 +1,370 @@
-cmake_minimum_required(VERSION 3.12)
-#set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum MacOS deployment version")
+# =============================================================================
+# LabRecorder - CMakeLists.txt
+# =============================================================================
+# Record and write LabStreamingLayer streams to an XDF file.
+# =============================================================================
+
+cmake_minimum_required(VERSION 3.28)
+
+# CMP0177: install() DESTINATION paths are normalized (CMake 3.31+)
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+endif()
 
 project(LabRecorder
-	DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
-	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
-	LANGUAGES C CXX
-	VERSION 1.16.4)
-
-# Needed for customized MacOSXBundleInfo.plist.in
-SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" ${CMAKE_MODULE_PATH})
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED On)
-
-option(BUILD_GUI "Build the GUI, set to off for CLI only build" ON)
-
-set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
-set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
-
-# Dependencies
-
-## LSL
-if(ANDROID)
-	set(LIBLSL_SOURCE_PATH "../../LSL/liblsl" CACHE STRING "Path to liblsl sources")
-
-	# force include liblsl as target to build with the android toolchain
-	# as path of the normal build process
-	add_subdirectory(${LIBLSL_SOURCE_PATH} liblsl_bin)
-	add_library(LSL::lsl ALIAS lsl)
-else()
-	find_package(LSL REQUIRED
-		HINTS ${LSL_INSTALL_ROOT}
-		"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/build/"
-		"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/build/install"
-		"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/out/build/x64-Release"
-		"${CMAKE_CURRENT_LIST_DIR}/../../LSL/liblsl/out/install/x64-Release"
-		PATH_SUFFIXES share/LSL
-	)
-endif()
-
-if (BUILD_GUI)
-	## Qt
-	set(CMAKE_AUTOMOC ON)  # The later version of this in LSLCMake is somehow not enough.
-	set(CMAKE_AUTORCC ON)
-	set(CMAKE_AUTOUIC ON)
-	find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
-	find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Network DBus)
-endif(BUILD_GUI)
-
-## Threads
-find_package(Threads REQUIRED)
-
-# Targets
-
-## xdfwriter - stand alone library
-add_subdirectory(xdfwriter)
-
-if (BUILD_GUI)
-	add_executable(${PROJECT_NAME} MACOSX_BUNDLE)
-
-	target_sources(${PROJECT_NAME} PRIVATE
-		src/main.cpp
-		src/mainwindow.cpp
-		src/mainwindow.h
-		src/mainwindow.ui
-		src/recording.h
-		src/recording.cpp
-		src/tcpinterface.h
-		src/tcpinterface.cpp
-	)
-
-	target_link_libraries(${PROJECT_NAME}
-		PRIVATE
-		xdfwriter
-		Qt${QT_VERSION_MAJOR}::Core
-		Qt${QT_VERSION_MAJOR}::Widgets
-		Qt${QT_VERSION_MAJOR}::Network
-		Qt${QT_VERSION_MAJOR}::DBus
-		Threads::Threads
-		LSL::lsl
-	)
-endif(BUILD_GUI)
-
-
-add_executable(LabRecorderCLI MACOSX_BUNDLE
-	src/clirecorder.cpp
-	src/recording.h
-	src/recording.cpp
+    VERSION 1.16.5
+    DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
+    HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
+    LANGUAGES C CXX
 )
 
-target_link_libraries(LabRecorderCLI
-	PRIVATE
-	xdfwriter
-	Threads::Threads
-	LSL::lsl
-)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-installLSLApp(xdfwriter)
-installLSLApp(testxdfwriter)
-installLSLApp(LabRecorderCLI)
-if (BUILD_GUI)
-	installLSLApp(${PROJECT_NAME})
-	installLSLAuxFiles(${PROJECT_NAME}
-		${PROJECT_NAME}.cfg
-		LICENSE
-		README.md
-	)
+# =============================================================================
+# Build Options
+# =============================================================================
+option(LABRECORDER_BUILD_GUI "Build the GUI application (requires Qt6)" ON)
+
+# =============================================================================
+# LSL Discovery Options
+# =============================================================================
+# Priority 1: Build from local source (for parallel liblsl development)
+set(LSL_SOURCE_DIR "" CACHE PATH "Path to liblsl source directory")
+
+# Priority 2: Use explicit installation path
+set(LSL_INSTALL_ROOT "" CACHE PATH "Path to installed liblsl")
+
+# Priority 3: System installation (searched automatically)
+
+# Priority 4: Fetch from GitHub if not found
+option(LSL_FETCH_IF_MISSING "Fetch liblsl from GitHub if not found locally" ON)
+# TODO: Change back to version tag (e.g., "v1.16.2") once apple_framework branch is merged
+set(LSL_FETCH_REF "cboulay/apple_framework" CACHE STRING "liblsl git ref to fetch (tag, branch, or commit)")
+
+# =============================================================================
+# Find/Fetch liblsl
+# =============================================================================
+if(LSL_SOURCE_DIR)
+    # Priority 1: Build from local source (parallel development)
+    if(NOT EXISTS "${LSL_SOURCE_DIR}/CMakeLists.txt")
+        message(FATAL_ERROR "LSL_SOURCE_DIR set to '${LSL_SOURCE_DIR}' but no CMakeLists.txt found there")
+    endif()
+    message(STATUS "Using local liblsl source: ${LSL_SOURCE_DIR}")
+    add_subdirectory("${LSL_SOURCE_DIR}" liblsl_bin EXCLUDE_FROM_ALL)
+    if(NOT TARGET LSL::lsl)
+        add_library(LSL::lsl ALIAS lsl)
+    endif()
+    set(LSL_FOUND TRUE)
+    include("${LSL_SOURCE_DIR}/cmake/LSLCMake.cmake")
 else()
-	installLSLAuxFiles(LabRecorderCLI
-		${PROJECT_NAME}.cfg
-		LICENSE
-		README.md
-	)
-endif(BUILD_GUI)
+    # Priority 2 & 3: Try to find installed liblsl
+    set(_lsl_hints)
+    if(LSL_INSTALL_ROOT)
+        list(APPEND _lsl_hints "${LSL_INSTALL_ROOT}")
+    endif()
+    # Common development layout hints (including CLion cmake-build-* directories)
+    string(TOLOWER "${CMAKE_BUILD_TYPE}" _build_type_lower)
+    if(NOT _build_type_lower)
+        set(_build_type_lower "release")
+    endif()
+    if(MSVC)
+        set(_clion_build_dir "cmake-build-${_build_type_lower}-visual-studio")
+    else()
+        set(_clion_build_dir "cmake-build-${_build_type_lower}")
+    endif()
+    foreach(_root IN ITEMS "../liblsl" "../../LSL/liblsl")
+        foreach(_build IN ITEMS "build" "${_clion_build_dir}")
+            list(APPEND _lsl_hints "${CMAKE_CURRENT_LIST_DIR}/${_root}/${_build}/install")
+        endforeach()
+    endforeach()
 
-
-if (WIN32)
-	if(BUILD_GUI)
-		get_target_property(QT_QMAKE_EXECUTABLE Qt::qmake IMPORTED_LOCATION)
-		get_filename_component(QT_WINDEPLOYQT_EXECUTABLE ${QT_QMAKE_EXECUTABLE} PATH)
-		set(QT_WINDEPLOYQT_EXECUTABLE "${QT_WINDEPLOYQT_EXECUTABLE}/windeployqt.exe")
-
-		add_custom_command(
-			TARGET ${PROJECT_NAME} POST_BUILD
-			COMMAND ${QT_WINDEPLOYQT_EXECUTABLE}
-			--no-translations --no-system-d3d-compiler
-			--qmldir ${CMAKE_CURRENT_SOURCE_DIR}
-			$<TARGET_FILE_DIR:${PROJECT_NAME}>)
-
-		add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-			$<TARGET_FILE:LSL::lsl>
-			$<TARGET_FILE:xdfwriter>
-			$<TARGET_FILE_DIR:${PROJECT_NAME}>)
-	else()
-		add_custom_command(TARGET LabRecorderCLI POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-			$<TARGET_FILE:LSL::lsl>
-			$<TARGET_FILE:xdfwriter>
-			$<TARGET_FILE_DIR:LabRecorderCLI>)
-	endif(BUILD_GUI)
-endif()
-
-if (BUILD_GUI)
-	add_custom_command(
-		TARGET ${PROJECT_NAME} POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy
-		${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
-		$<TARGET_FILE_DIR:${PROJECT_NAME}>)
-else()
-	add_custom_command(
-		TARGET LabRecorderCLI POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy
-		${CMAKE_CURRENT_SOURCE_DIR}//${PROJECT_NAME}.cfg
-		$<TARGET_FILE_DIR:LabRecorderCLI>)
-endif(BUILD_GUI)
-
-if(Qt6_FOUND AND BUILD_GUI)
-	set_target_properties(${PROJECT_NAME} PROPERTIES
-		QT_ANDROID_EXTRA_LIBS "${CMAKE_CURRENT_BINARY_DIR}/liblsl_bin/liblsl.so")
-	qt_finalize_executable(${PROJECT_NAME})
-endif(Qt6_FOUND AND BUILD_GUI)
-
-set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
-LSLGenerateCPackConfig()
-
-if(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
-    # Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path.
-    #  Unfortunately, macdeployqt does not seem to traverse @loader_path dependencies.
-    #  So we are forced to call `fixup_bundle`. For now, we only do this if homebrew is present
-    #  because that seems to be where the bad dependency is coming from.
-    # Note that fixup_bundle also destroys the codesigning so we have to redo that.
-  	# TODO: Checkout supercollider apple-specific stuff, e.g.: https://github.com/supercollider/supercollider/blob/develop/CMakeLists.txt#L260-L262
-
-    # Detect Apple Silicon
-    execute_process(
-        COMMAND uname -m
-        OUTPUT_VARIABLE ARCH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
+    set(_lsl_suffixes
+        share/LSL
+        lib/cmake/LSL
+        cmake
+        Frameworks/lsl.framework/Resources/CMake  # macOS framework layout
     )
-    
-    # Check for Homebrew
-    execute_process(
-        COMMAND brew --prefix
-        RESULT_VARIABLE BREW_LIB
-        OUTPUT_VARIABLE BREW_PREFIX
-        OUTPUT_STRIP_TRAILING_WHITESPACE
+
+    # First try: Search only in hints (prefer local builds over system)
+    find_package(LSL QUIET
+        HINTS ${_lsl_hints}
+        PATH_SUFFIXES ${_lsl_suffixes}
+        NO_DEFAULT_PATH
     )
-    
-    if (BREW_LIB EQUAL 0 AND EXISTS "${BREW_PREFIX}")
-        install(CODE
-            "
-                include(BundleUtilities)
-                fixup_bundle(\"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\" \"\" \"${BREW_PREFIX}/lib\")
-                
-                # Fix Qt plugin references specifically for Apple Silicon
-                if(\"${ARCH}\" STREQUAL \"arm64\")
-                    execute_process(COMMAND install_name_tool -change @rpath/QtGui.framework/Versions/A/QtGui @executable_path/../Frameworks/QtGui
-                        \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app/Contents/PlugIns/platforms/libqcocoa.dylib\")
-                endif()
-                
-                # Re-sign with the same approach the project already uses
-				execute_process(COMMAND codesign --remove-signature \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\")
-				execute_process(COMMAND find \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app/Contents/Frameworks\" -type f -exec codesign --force --sign - {} \\; 2>/dev/null || true)
-				execute_process(COMMAND find \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app/Contents/PlugIns\" -type f -exec codesign --force --sign - {} \\; 2>/dev/null || true)
-				execute_process(COMMAND codesign --force --deep --sign - \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\")            "
+
+    # Second try: Search system paths if not found in hints
+    if(NOT LSL_FOUND)
+        find_package(LSL QUIET
+            PATH_SUFFIXES ${_lsl_suffixes}
         )
     endif()
-endif(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
+
+    if(LSL_FOUND)
+        message(STATUS "Found installed liblsl: ${LSL_DIR}")
+        include("${LSL_DIR}/LSLCMake.cmake")
+    elseif(LSL_FETCH_IF_MISSING)
+        # Priority 4: Fetch from GitHub
+        message(STATUS "liblsl not found locally, fetching ${LSL_FETCH_REF} from GitHub...")
+        include(FetchContent)
+        # Disable liblsl extras we don't need
+        set(LSL_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(LSL_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+        # EXCLUDE_FROM_ALL prevents liblsl's install rules from running
+        FetchContent_Declare(liblsl
+            GIT_REPOSITORY https://github.com/sccn/liblsl.git
+            GIT_TAG ${LSL_FETCH_REF}
+            GIT_SHALLOW ON
+            EXCLUDE_FROM_ALL
+        )
+        FetchContent_MakeAvailable(liblsl)
+        if(NOT TARGET LSL::lsl)
+            add_library(LSL::lsl ALIAS lsl)
+        endif()
+        set(LSL_FOUND TRUE)
+        include("${liblsl_SOURCE_DIR}/cmake/LSLCMake.cmake")
+        message(STATUS "liblsl fetched and configured")
+    else()
+        message(FATAL_ERROR
+            "liblsl not found. Options:\n"
+            "  1. Set LSL_SOURCE_DIR to liblsl source directory\n"
+            "  2. Set LSL_INSTALL_ROOT to installed liblsl location\n"
+            "  3. Install liblsl system-wide\n"
+            "  4. Enable LSL_FETCH_IF_MISSING=ON to auto-fetch from GitHub"
+        )
+    endif()
+endif()
+
+# =============================================================================
+# Qt6 (for GUI build only)
+# =============================================================================
+if(LABRECORDER_BUILD_GUI)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTORCC ON)
+    set(CMAKE_AUTOUIC ON)
+
+    find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
+
+    # macOS: Work around deprecated AGL framework issue in some Qt6 builds
+    if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
+        get_target_property(_wrap_gl_libs WrapOpenGL::WrapOpenGL INTERFACE_LINK_LIBRARIES)
+        if(_wrap_gl_libs)
+            list(FILTER _wrap_gl_libs EXCLUDE REGEX ".*AGL.*")
+            set_target_properties(WrapOpenGL::WrapOpenGL PROPERTIES INTERFACE_LINK_LIBRARIES "${_wrap_gl_libs}")
+        endif()
+    endif()
+endif()
+
+# =============================================================================
+# Common Dependencies
+# =============================================================================
+find_package(Threads REQUIRED)
+
+# =============================================================================
+# RPATH Configuration (must be set before targets are created)
+# =============================================================================
+LSL_configure_rpath()
+
+# =============================================================================
+# Targets
+# =============================================================================
+
+# xdfwriter library
+add_subdirectory(xdfwriter)
+
+# GUI application
+if(LABRECORDER_BUILD_GUI)
+    qt_add_executable(${PROJECT_NAME} MACOSX_BUNDLE WIN32
+        src/main.cpp
+        src/mainwindow.cpp
+        src/mainwindow.h
+        src/mainwindow.ui
+        src/recording.h
+        src/recording.cpp
+        src/tcpinterface.h
+        src/tcpinterface.cpp
+    )
+
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        xdfwriter
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+        Threads::Threads
+        LSL::lsl
+    )
+
+    # macOS bundle configuration
+    if(APPLE)
+        set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.labstreaminglayer.${PROJECT_NAME}")
+        set(MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}")
+        set(MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
+    endif()
+endif()
+
+# CLI application
+add_executable(${PROJECT_NAME}CLI
+    src/clirecorder.cpp
+    src/recording.h
+    src/recording.cpp
+)
+target_link_libraries(${PROJECT_NAME}CLI PRIVATE
+    xdfwriter
+    Threads::Threads
+    LSL::lsl
+)
+
+# =============================================================================
+# Copy config file to build directory for testing
+# =============================================================================
+if(LABRECORDER_BUILD_GUI)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.cfg"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+    )
+endif()
+add_custom_command(TARGET ${PROJECT_NAME}CLI POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.cfg"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}CLI>"
+)
+
+# =============================================================================
+# Installation
+# =============================================================================
+include(GNUInstallDirs)
+
+# Platform-specific install directories
+if(WIN32)
+    set(INSTALL_BINDIR ".")
+    set(INSTALL_LIBDIR ".")
+    set(INSTALL_DATADIR ".")
+elseif(APPLE)
+    set(INSTALL_BINDIR ".")
+    set(INSTALL_LIBDIR ".")
+    set(INSTALL_DATADIR ".")
+else()
+    # Linux: use standard FHS layout
+    set(INSTALL_BINDIR "${CMAKE_INSTALL_BINDIR}")
+    set(INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}")
+    set(INSTALL_DATADIR "${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}")
+endif()
+
+# Install xdfwriter library
+install(TARGETS xdfwriter
+    RUNTIME DESTINATION "${INSTALL_BINDIR}"
+    LIBRARY DESTINATION "${INSTALL_LIBDIR}"
+    ARCHIVE DESTINATION "${INSTALL_LIBDIR}"
+)
+
+# Install CLI
+install(TARGETS ${PROJECT_NAME}CLI
+    RUNTIME DESTINATION "${INSTALL_BINDIR}"
+)
+
+# Install GUI
+if(LABRECORDER_BUILD_GUI)
+    install(TARGETS ${PROJECT_NAME}
+        RUNTIME DESTINATION "${INSTALL_BINDIR}"
+        BUNDLE DESTINATION "${INSTALL_BINDIR}"
+    )
+endif()
+
+# Install auxiliary files
+set(_config_dest "${INSTALL_DATADIR}")
+if(APPLE AND LABRECORDER_BUILD_GUI)
+    set(_config_dest "${INSTALL_BINDIR}/${PROJECT_NAME}.app/Contents/MacOS")
+endif()
+install(FILES
+    ${PROJECT_NAME}.cfg
+    LICENSE
+    README.md
+    DESTINATION "${_config_dest}"
+)
+
+# =============================================================================
+# Bundle liblsl with the application
+# =============================================================================
+if(APPLE)
+    # macOS: Install framework to GUI bundle and CLI Frameworks directory
+    if(LABRECORDER_BUILD_GUI)
+        LSL_install_liblsl(
+            FRAMEWORK_DESTINATION "${INSTALL_BINDIR}/${PROJECT_NAME}.app/Contents/Frameworks"
+        )
+    endif()
+    LSL_install_liblsl(FRAMEWORK_DESTINATION "Frameworks")
+else()
+    # Windows/Linux: Single install location for all targets
+    LSL_install_liblsl(DESTINATION "${INSTALL_LIBDIR}")
+endif()
+
+# =============================================================================
+# Qt Deployment
+# =============================================================================
+if(LABRECORDER_BUILD_GUI)
+    LSL_deploy_qt(TARGET "${PROJECT_NAME}" DESTINATION "${INSTALL_BINDIR}")
+endif()
+
+# =============================================================================
+# MinGW Runtime Deployment
+# =============================================================================
+LSL_install_mingw_runtime(DESTINATION "${INSTALL_BINDIR}")
+
+# =============================================================================
+# macOS: Code Sign
+# =============================================================================
+if(APPLE)
+    if(LABRECORDER_BUILD_GUI)
+        LSL_codesign(
+            TARGET "${PROJECT_NAME}"
+            DESTINATION "${INSTALL_BINDIR}"
+            ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/app.entitlements"
+            BUNDLE
+        )
+    endif()
+
+    LSL_codesign(
+        TARGET "${PROJECT_NAME}CLI"
+        DESTINATION "${INSTALL_BINDIR}"
+        ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/app.entitlements"
+        FRAMEWORK "Frameworks/lsl.framework"
+    )
+endif()
+
+# =============================================================================
+# CPack Configuration
+# =============================================================================
+LSL_get_target_arch()
+LSL_get_os_name()
+
+set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VENDOR "Labstreaminglayer")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
+set(CPACK_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}-${LSL_OS}_${LSL_ARCH}")
+set(CPACK_STRIP_FILES ON)
+
+if(WIN32)
+    set(CPACK_GENERATOR ZIP)
+    set(CPACK_WIX_UPGRADE_GUID "ee28a351-3b27-4c2b-8b48-259c87d1b1b4")
+elseif(APPLE)
+    set(CPACK_GENERATOR TGZ)
+    set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME}")
+else()
+    set(CPACK_GENERATOR DEB TGZ)
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "LabStreamingLayer Developers")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "science")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.deb")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+    if(LABRECORDER_BUILD_GUI)
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6widgets6, libqt6network6")
+    endif()
+endif()
+
+include(CPack)

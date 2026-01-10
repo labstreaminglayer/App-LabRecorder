@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Network client capability (outbound TCP/UDP) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Network server capability (inbound TCP/UDP, listen) -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- Multicast capability (required for LSL stream discovery) -->
+    <key>com.apple.security.network.multicast</key>
+    <true/>
+</dict>
+</plist>

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.14)
 
 project(xdfwriter
 	DESCRIPTION "C++ library for writing XDF files"
@@ -6,11 +6,11 @@ project(xdfwriter
 	LANGUAGES C CXX
 	VERSION 1.16.0)
 
-option(LABRECORDER_XDFZ "use Boost.Iostreams for XDFZ support" Off)
-option(LABRECORDER_BOOST_TYPE_CONVERSIONS "Use boost for type conversions" Off)
+option(LABRECORDER_XDFZ "use Boost.Iostreams for XDFZ support" OFF)
+option(LABRECORDER_BOOST_TYPE_CONVERSIONS "Use boost for type conversions" OFF)
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED On)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(${PROJECT_NAME} xdfwriter.cpp)
 
@@ -25,7 +25,7 @@ if(NOT LABRECORDER_SKIP_CPUTESTS)
 	try_run(IS_LITTLE_ENDIAN IS_IEC559
 		${CMAKE_CURRENT_BINARY_DIR}
 		"${CMAKE_CURRENT_SOURCE_DIR}/test_iec559_and_little_endian.cpp"
-		CMAKE_FLAGS "-DCMAKE_CXX_STANDARD=14" "-DCMAKE_CXX_STANDARD_REQUIRED=On"
+		CMAKE_FLAGS "-DCMAKE_CXX_STANDARD=20" "-DCMAKE_CXX_STANDARD_REQUIRED=ON"
 		COMPILE_OUTPUT_VARIABLE IEC559_COMPILE)
 	if(NOT IS_IEC559)
 		message(WARNING "IEC559 test: ${IEC559_COMPILE}")
