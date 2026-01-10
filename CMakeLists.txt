@@ -12,7 +12,7 @@ if(POLICY CMP0177)
 endif()
 
 project(LabRecorder
-    VERSION 1.16.5
+    VERSION 1.17.0
     DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
     HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
     LANGUAGES C CXX
@@ -40,8 +40,7 @@ set(LSL_INSTALL_ROOT "" CACHE PATH "Path to installed liblsl")
 
 # Priority 4: Fetch from GitHub if not found
 option(LSL_FETCH_IF_MISSING "Fetch liblsl from GitHub if not found locally" ON)
-# TODO: Change back to version tag (e.g., "v1.16.2") once apple_framework branch is merged
-set(LSL_FETCH_REF "cboulay/apple_framework" CACHE STRING "liblsl git ref to fetch (tag, branch, or commit)")
+set(LSL_FETCH_REF "v1.17.0" CACHE STRING "liblsl git ref to fetch (tag, branch, or commit)")
 
 # =============================================================================
 # Find/Fetch liblsl
