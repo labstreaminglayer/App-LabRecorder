@@ -1,0 +1,287 @@
+# =============================================================================
+# LabRecorder Build Workflow
+# =============================================================================
+# This workflow builds, tests, and packages LabRecorder for all supported
+# platforms.
+#
+# Features:
+#   - Multi-platform builds (Linux, macOS, Windows)
+#   - Qt6 integration
+#   - Automatic liblsl fetch via FetchContent
+#   - CPack packaging
+#   - macOS code signing and notarization (on release)
+# =============================================================================
+
+name: Build
+
+on:
+  push:
+    branches: [main, master, dev]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # ===========================================================================
+  # Build Job - Multi-platform builds
+  # ===========================================================================
+  build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "Ubuntu 22.04", os: ubuntu-22.04 }
+          - { name: "Ubuntu 24.04", os: ubuntu-24.04 }
+          - { name: "macOS", os: macos-14, cmake_extra: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"' }
+          - { name: "Windows", os: windows-latest }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Install CMake 3.28+ (Ubuntu 22.04 ships with 3.22)
+      # -----------------------------------------------------------------------
+      - name: Install CMake
+        if: runner.os == 'Linux'
+        uses: lukka/get-cmake@latest
+
+      # -----------------------------------------------------------------------
+      # Install Qt6 (6.8 LTS across all platforms)
+      # -----------------------------------------------------------------------
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          cache: true
+
+      # -----------------------------------------------------------------------
+      # Configure
+      # -----------------------------------------------------------------------
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+          -DLSL_FETCH_IF_MISSING=ON
+          ${{ matrix.config.cmake_extra }}
+
+      # -----------------------------------------------------------------------
+      # Build
+      # -----------------------------------------------------------------------
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      # -----------------------------------------------------------------------
+      # Install
+      # -----------------------------------------------------------------------
+      - name: Install
+        run: cmake --install build --config ${{ env.BUILD_TYPE }}
+
+      # -----------------------------------------------------------------------
+      # Test CLI
+      # -----------------------------------------------------------------------
+      - name: Test CLI (Linux)
+        if: runner.os == 'Linux'
+        run: ./install/bin/LabRecorderCLI --help || true
+
+      - name: Test CLI (macOS)
+        if: runner.os == 'macOS'
+        run: ./install/LabRecorderCLI --help || true
+
+      - name: Test CLI (Windows)
+        if: runner.os == 'Windows'
+        run: ./install/LabRecorderCLI.exe --help || true
+
+      # -----------------------------------------------------------------------
+      # Package
+      # -----------------------------------------------------------------------
+      - name: Package
+        run: cpack -C ${{ env.BUILD_TYPE }}
+        working-directory: build
+
+      # -----------------------------------------------------------------------
+      # Upload Artifacts
+      # -----------------------------------------------------------------------
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.config.os }}
+          path: |
+            build/*.zip
+            build/*.tar.gz
+            build/*.deb
+          if-no-files-found: ignore
+
+  # ===========================================================================
+  # macOS Signing and Notarization (Release only)
+  # ===========================================================================
+  sign-macos:
+    name: Sign & Notarize (macOS)
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download macOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: package-macos-14
+          path: packages
+
+      - name: Extract Package
+        run: |
+          cd packages
+          tar -xzf *.tar.gz
+          # Move contents out of versioned subdirectory to packages/
+          SUBDIR=$(ls -d LabRecorder-*/ | head -1)
+          mv "$SUBDIR"/* .
+          rmdir "$SUBDIR"
+          ls -la
+
+      # -----------------------------------------------------------------------
+      # Install Apple Certificates
+      # -----------------------------------------------------------------------
+      - name: Install Apple Certificates
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.PROD_MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.PROD_MACOS_CERTIFICATE_PWD }}
+          MACOS_CI_KEYCHAIN_PWD: ${{ secrets.PROD_MACOS_CI_KEYCHAIN_PWD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          security create-keychain -p "$MACOS_CI_KEYCHAIN_PWD" $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$MACOS_CI_KEYCHAIN_PWD" $KEYCHAIN_PATH
+
+          # Import certificate
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          echo -n "$MACOS_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
+          security import $CERTIFICATE_PATH -P "$MACOS_CERTIFICATE_PWD" -k $KEYCHAIN_PATH -A -t cert -f pkcs12
+          rm $CERTIFICATE_PATH
+
+          # Allow codesign to access keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_CI_KEYCHAIN_PWD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Extract identity name and export to environment
+          IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          echo "APPLE_CODE_SIGN_IDENTITY_APP=$IDENTITY" >> $GITHUB_ENV
+
+      # -----------------------------------------------------------------------
+      # Setup Notarization Credentials
+      # -----------------------------------------------------------------------
+      - name: Setup Notarization
+        env:
+          NOTARIZATION_APPLE_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_APPLE_ID }}
+          NOTARIZATION_PWD: ${{ secrets.PROD_MACOS_NOTARIZATION_PWD }}
+          NOTARIZATION_TEAM_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_TEAM_ID }}
+        run: |
+          xcrun notarytool store-credentials "notarize-profile" \
+            --apple-id "$NOTARIZATION_APPLE_ID" \
+            --password "$NOTARIZATION_PWD" \
+            --team-id "$NOTARIZATION_TEAM_ID"
+          echo "APPLE_NOTARIZE_KEYCHAIN_PROFILE=notarize-profile" >> $GITHUB_ENV
+
+      # -----------------------------------------------------------------------
+      # Sign and Notarize
+      # -----------------------------------------------------------------------
+      - name: Sign and Notarize
+        env:
+          ENTITLEMENTS_FILE: ${{ github.workspace }}/app.entitlements
+        run: |
+          # Sign GUI app bundle (--deep handles all nested code including lsl.framework)
+          APP_PATH=$(find packages -name "*.app" -type d | head -1)
+          if [[ -n "$APP_PATH" ]]; then
+            ./scripts/sign_and_notarize.sh "$APP_PATH" --notarize
+          fi
+
+          # Sign CLI and its bundled lsl.framework
+          CLI_PATH=$(find packages -name "LabRecorderCLI" -type f | head -1)
+          if [[ -n "$CLI_PATH" ]]; then
+            CLI_DIR=$(dirname "$CLI_PATH")
+            # Sign framework first (dependency must be signed before dependent)
+            if [[ -d "$CLI_DIR/Frameworks/lsl.framework" ]]; then
+              codesign --force --sign "$APPLE_CODE_SIGN_IDENTITY_APP" --options runtime \
+                "$CLI_DIR/Frameworks/lsl.framework"
+            fi
+            ./scripts/sign_and_notarize.sh "$CLI_PATH" --notarize
+          fi
+
+      # -----------------------------------------------------------------------
+      # Repackage
+      # -----------------------------------------------------------------------
+      - name: Repackage
+        run: |
+          cd packages
+
+          # Debug: show what we have
+          echo "Contents of packages directory:"
+          ls -la
+
+          # Remove original unsigned package
+          rm -f *.tar.gz
+
+          # Get project version from CMakeLists.txt
+          VERSION=$(grep -A1 'project(LabRecorder' ../CMakeLists.txt | grep VERSION | sed 's/.*VERSION \([0-9.]*\).*/\1/')
+          echo "Detected version: $VERSION"
+
+          # Create signed package with CLI and its Frameworks (universal binary)
+          tar -cvzf "LabRecorder-${VERSION}-macOS_universal-signed.tar.gz" \
+            LabRecorder.app LabRecorderCLI Frameworks LabRecorder.cfg LICENSE README.md
+
+          echo "Created package:"
+          ls -la *.tar.gz
+
+      - name: Upload Signed Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-macos-signed
+          path: packages/*-signed.tar.gz
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/*-signed.tar.gz
+
+  # ===========================================================================
+  # Upload unsigned packages to release
+  # ===========================================================================
+  release:
+    name: Upload to Release
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.tar.gz
+            artifacts/**/*.deb

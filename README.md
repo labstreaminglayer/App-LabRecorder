@@ -38,12 +38,11 @@ Run it with `open /usr/local/opt/labrecorder/LabRecorder/LabRecorder.app`
 The Ubuntu releases do not typically ship with their dependencies, so you must download and install those:
 * Download, extract, and install the latest [liblsl-{version}-{target}_amd64.deb from its release page](https://github.com/sccn/liblsl/releases)
     * We hope to make this available via a package manager soon.
-      * Quick ref Ubuntu 20.04: `curl -L https://github.com/sccn/liblsl/releases/download/v1.16.0/liblsl-1.16.0-bionic_amd64.deb -o liblsl.deb`
-      * Quick ref Ubuntu 22.04: `curl -L https://github.com/sccn/liblsl/releases/download/v1.16.0/liblsl-1.16.0-jammy_amd64.deb -o liblsl.deb`
+      * Quick ref Ubuntu 24.04: `curl -L https://github.com/sccn/liblsl/releases/download/v1.17.4/liblsl-1.17.4-noble_amd64.deb -o liblsl.deb`
+      * Quick ref Ubuntu 22.04: `curl -L https://github.com/sccn/liblsl/releases/download/v1.17.4/liblsl-1.17.4-jammy_amd64.deb -o liblsl.deb`
     * You can install liblsl directly by double-clicking on the deb, or with `sudo dpkg -i {filename}.deb` or `sudo apt install {filename}.deb`
 * See the bottom of the [lsl build env docs](https://labstreaminglayer.readthedocs.io/dev/build_env.html).
     * For most cases, this will amount to installing Qt and its dependencies:
-      * Ubuntu 18.xx or 20.xx: `sudo apt-get install build-essential qtbase5-dev libpugixml-dev`
       * Ubuntu >= 22.04: `sudo apt-get install qt6-base-dev freeglut3-dev`
 
 # Usage
