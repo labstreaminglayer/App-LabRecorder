@@ -165,7 +165,7 @@ endif(Qt6_FOUND AND BUILD_GUI)
 set(CPACK_DEBIAN_LABRECORDER_PACKAGE_SECTION "science" CACHE INTERNAL "")
 LSLGenerateCPackConfig()
 
-if(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
+if(APPLE AND BUILD_GUI AND NOT DEFINED ENV{GITHUB_ACTIONS})
     # Qt6 QtNetwork depends on libbrotidec which depends on libbroticommon but whose search path uses @loader_path.
     #  Unfortunately, macdeployqt does not seem to traverse @loader_path dependencies.
     #  So we are forced to call `fixup_bundle`. For now, we only do this if homebrew is present
@@ -207,4 +207,4 @@ if(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
 				execute_process(COMMAND codesign --force --deep --sign - \"${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}/${PROJECT_NAME}.app\")            "
         )
     endif()
-endif(APPLE AND NOT DEFINED ENV{GITHUB_ACTIONS})
+endif(APPLE AND BUILD_GUI AND NOT DEFINED ENV{GITHUB_ACTIONS})
