@@ -283,5 +283,5 @@ jobs:
         with:
           files: |
             artifacts/**/*.zip
-            artifacts/**/*.tar.gz
+            artifacts/package-ubuntu-*/*.tar.gz
             artifacts/**/*.deb
