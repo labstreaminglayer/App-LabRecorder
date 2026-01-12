@@ -4,7 +4,7 @@ project(xdfwriter
 	DESCRIPTION "C++ library for writing XDF files"
 	HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
 	LANGUAGES C CXX
-	VERSION 1.16.0)
+	VERSION 1.17.0)
 
 option(LABRECORDER_XDFZ "use Boost.Iostreams for XDFZ support" OFF)
 option(LABRECORDER_BOOST_TYPE_CONVERSIONS "Use boost for type conversions" OFF)
