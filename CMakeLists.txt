@@ -40,7 +40,7 @@ set(LSL_INSTALL_ROOT "" CACHE PATH "Path to installed liblsl")
 
 # Priority 4: Fetch from GitHub if not found
 option(LSL_FETCH_IF_MISSING "Fetch liblsl from GitHub if not found locally" ON)
-set(LSL_FETCH_REF "v1.17.4" CACHE STRING "liblsl git ref to fetch (tag, branch, or commit)")
+set(LSL_FETCH_REF "v1.17.5" CACHE STRING "liblsl git ref to fetch (tag, branch, or commit)")
 
 # =============================================================================
 # Find/Fetch liblsl
