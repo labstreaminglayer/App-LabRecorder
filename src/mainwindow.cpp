@@ -354,8 +354,8 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 	    item->setToolTip(QString("Name: %1\nType: %2\nHostname: %3\nSource ID: %4")
             .arg(QString::fromStdString(k.name),
                  QString::fromStdString(k.type),
-                 QString::fromStdString(k.hostname),
-                 QString::fromStdString(k.id)));
+                 QString::fromStdString(k.id),
+                 QString::fromStdString(k.host)));
 		ui->streamList->addItem(item);
 	}
 
