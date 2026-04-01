@@ -181,7 +181,7 @@ void MainWindow::load_config(QString filename) {
 		// StorageLocation
 		QString studyRoot;
 		legacyTemplate.clear();
-		
+
 		if (pt.contains("StorageLocation")) {
 			if (pt.contains("StudyRoot"))
 				throw std::runtime_error("StorageLocation cannot be used if StudyRoot is also specified.");
@@ -400,6 +400,12 @@ void MainWindow::startRecording() {
 			QMessageBox::critical(this, "Filename empty", "Can not record without a file name");
 			return;
 		}
+		if (ui->rootEdit->text().trimmed().isEmpty()) {
+			QMessageBox::critical(this, "Study Root empty",
+				"Can not record without a Study Root folder. "
+				"Please set a Study Root before recording.");
+			return;
+		}
 		recFilename.prepend(QDir::cleanPath(ui->rootEdit->text()) + '/');
 
 		QFileInfo recFileInfo(recFilename);
@@ -431,7 +437,7 @@ void MainWindow::startRecording() {
 					". Please check your permissions.");
 			return;
 		}
-		
+
 		std::vector<std::string> watchfor;
 		for (const QString &missing : std::as_const(missingStreams)) {
             std::string query;
