@@ -181,7 +181,7 @@ void MainWindow::load_config(QString filename) {
 		// StorageLocation
 		QString studyRoot;
 		legacyTemplate.clear();
-		
+
 		if (pt.contains("StorageLocation")) {
 			if (pt.contains("StudyRoot"))
 				throw std::runtime_error("StorageLocation cannot be used if StudyRoot is also specified.");
@@ -351,6 +351,11 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 		auto *item = new QListWidgetItem(k.listName(), ui->streamList);
 		item->setCheckState(k.checked ? Qt::Checked : Qt::Unchecked);
 		item->setForeground(good_brush);
+	    item->setToolTip(QString("Name: %1\nType: %2\nHostname: %3\nSource ID: %4")
+            .arg(QString::fromStdString(k.name),
+                 QString::fromStdString(k.type),
+                 QString::fromStdString(k.hostname),
+                 QString::fromStdString(k.id)));
 		ui->streamList->addItem(item);
 	}
 
@@ -431,7 +436,7 @@ void MainWindow::startRecording() {
 					". Please check your permissions.");
 			return;
 		}
-		
+
 		std::vector<std::string> watchfor;
 		for (const QString &missing : std::as_const(missingStreams)) {
             std::string query;
