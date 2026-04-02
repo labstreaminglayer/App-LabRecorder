@@ -133,7 +133,7 @@ jobs:
   sign-macos:
     name: Sign & Notarize (macOS)
     needs: build
-    if: github.event_name == 'release'
+    if: (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
     runs-on: macos-14
 
     steps:
@@ -245,8 +245,9 @@ jobs:
           echo "Detected version: $VERSION"
 
           # Create signed package with CLI and its Frameworks (universal binary)
+          # Note: LabRecorder.cfg, LICENSE, README.md are inside LabRecorder.app/Contents/MacOS/
           tar -cvzf "LabRecorder-${VERSION}-macOS_universal-signed.tar.gz" \
-            LabRecorder.app LabRecorderCLI Frameworks LabRecorder.cfg LICENSE README.md
+            LabRecorder.app LabRecorderCLI Frameworks
 
           echo "Created package:"
           ls -la *.tar.gz
