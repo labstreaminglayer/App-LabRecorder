@@ -128,7 +128,7 @@ jobs:
           if-no-files-found: ignore
 
   # ===========================================================================
-  # macOS Signing and Notarization (Release only)
+  # macOS Signing and Notarization
   # ===========================================================================
   sign-macos:
     name: Sign & Notarize (macOS)
@@ -156,9 +156,6 @@ jobs:
           rmdir "$SUBDIR"
           ls -la
 
-      # -----------------------------------------------------------------------
-      # Install Apple Certificates
-      # -----------------------------------------------------------------------
       - name: Install Apple Certificates
         env:
           MACOS_CERTIFICATE: ${{ secrets.PROD_MACOS_CERTIFICATE }}
@@ -186,9 +183,6 @@ jobs:
           IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
           echo "APPLE_CODE_SIGN_IDENTITY_APP=$IDENTITY" >> $GITHUB_ENV
 
-      # -----------------------------------------------------------------------
-      # Setup Notarization Credentials
-      # -----------------------------------------------------------------------
       - name: Setup Notarization
         env:
           NOTARIZATION_APPLE_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_APPLE_ID }}
@@ -201,9 +195,6 @@ jobs:
             --team-id "$NOTARIZATION_TEAM_ID"
           echo "APPLE_NOTARIZE_KEYCHAIN_PROFILE=notarize-profile" >> $GITHUB_ENV
 
-      # -----------------------------------------------------------------------
-      # Sign and Notarize
-      # -----------------------------------------------------------------------
       - name: Sign and Notarize
         env:
           ENTITLEMENTS_FILE: ${{ github.workspace }}/app.entitlements
@@ -226,16 +217,9 @@ jobs:
             ./scripts/sign_and_notarize.sh "$CLI_PATH" --notarize
           fi
 
-      # -----------------------------------------------------------------------
-      # Repackage
-      # -----------------------------------------------------------------------
       - name: Repackage
         run: |
           cd packages
-
-          # Debug: show what we have
-          echo "Contents of packages directory:"
-          ls -la
 
           # Remove original unsigned package
           rm -f *.tar.gz
@@ -258,19 +242,13 @@ jobs:
           name: package-macos-signed
           path: packages/*-signed.tar.gz
 
-      - name: Upload to Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: packages/*-signed.tar.gz
-
   # ===========================================================================
-  # Upload unsigned packages to release
+  # Upload packages to release
   # ===========================================================================
   release:
     name: Upload to Release
-    needs: build
-    if: github.event_name == 'release'
+    needs: [build, sign-macos]
+    if: github.event_name == 'release' && !failure() && !cancelled()
     runs-on: ubuntu-latest
 
     steps:
@@ -283,6 +261,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/**/*.zip
+            artifacts/package-macos-signed/*.tar.gz
             artifacts/package-ubuntu-*/*.tar.gz
-            artifacts/**/*.deb
+            artifacts/package-ubuntu-*/*.deb
+            artifacts/package-windows-*/*.zip
