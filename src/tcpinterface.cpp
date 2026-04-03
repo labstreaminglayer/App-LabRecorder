@@ -22,14 +22,24 @@ void RemoteControlSocket::handleLine(QString s, QTcpSocket *sock) {
 	else if (s == "stop")
 		emit stop();
 	else if (s == "update")
-			emit refresh_streams();
+		emit refresh_streams();
 	else if (s.contains("filename")) {
 		emit filename(s);
-	} else if (s.contains("select")) {
-		if (s.contains("all")) {
-			emit select_all();
-		} else if (s.contains("none")) {
-			emit select_none();
+	}
+	else if (s.contains("select all"))
+		emit select_all();
+	else if (s.contains("select none"))
+		emit select_none();
+	else if (s.contains("select")) {
+		QString search_str = s.mid(7).trimmed(); // Assuming "select" is 7 characters long
+		if (!search_str.isEmpty()) {
+			emit select_stream(search_str);
+		}
+	}
+	else if (s.contains("regexselect")) {
+		QString regexPattern = s.mid(12).trimmed(); // Assuming "regexselect" is 12 characters long
+		if (!regexPattern.isEmpty()) {
+			emit select_stream_regex(regexPattern);
 		}
 	}
 	sock->write("OK");
