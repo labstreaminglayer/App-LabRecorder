@@ -16,11 +16,12 @@ public:
 
 signals:
 	void refresh_streams();
-	void start();
+	void start(QTcpSocket *sock);
 	void stop();
 	void filename(QString s);
 	void select_all();
 	void select_none();
+	void select_stream(QString query);
 
 public slots:
 	void addClient();
