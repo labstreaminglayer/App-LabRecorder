@@ -31,7 +31,11 @@ void RemoteControlSocket::handleLine(QString s, QTcpSocket *sock) {
 	} else if (s == "select none") {
 		emit select_none();
 	} else if (s.startsWith("select ")) {
-		emit select_stream(s.mid(QStringLiteral("select ").size()));
+		emit select_stream(s.mid(QStringLiteral("select ").size()), sock);
+		return;
+	} else {
+		sock->write("ERROR unknown command");
+		return;
 	}
 	sock->write("OK");
 	// TODO: select /deselect streams

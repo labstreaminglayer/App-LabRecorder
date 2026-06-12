@@ -93,6 +93,8 @@ Currently supported commands include:
 * `update`
 * `filename ...`
 
+Commands respond with `OK`, `WARNING ...`, or `ERROR ...`.
+
 `filename` is followed by a series of space-delimited options enclosed in curly braces. e.g. {root:C:\root_data_dir}
 * `root` - Sets the root data directory.
 * `template` - sets the File Name / Template. Will unselect BIDS option. May contain wildcards.

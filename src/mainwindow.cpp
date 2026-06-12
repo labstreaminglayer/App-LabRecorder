@@ -40,7 +40,7 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 	connect(ui->refreshButton, &QPushButton::clicked, this, &MainWindow::refreshStreams);
 	connect(ui->selectAllButton, &QPushButton::clicked, this, &MainWindow::selectAllStreams);
 	connect(ui->selectNoneButton, &QPushButton::clicked, this, &MainWindow::selectNoStreams);
-	connect(ui->startButton, &QPushButton::clicked, this, &MainWindow::startRecording);
+	connect(ui->startButton, &QPushButton::clicked, this, [this]() { startRecording(); });
 	connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::stopRecording);
 	connect(ui->actionAbout, &QAction::triggered, this, [this]() {
 		QString infostr = QStringLiteral("LSL library version: ") +
@@ -312,12 +312,11 @@ void MainWindow::rebuildStreamList() {
 		item->setData(Qt::UserRole, i);
 		item->setCheckState(k.checked ? Qt::Checked : Qt::Unchecked);
 		item->setForeground(good_brush);
-		item->setToolTip(QString("Name: %1\nType: %2\nSource ID: %3\nHostname: %4\nUID: %5")
+		item->setToolTip(QString("Name: %1\nType: %2\nSource ID: %3\nHostname: %4")
 							 .arg(QString::fromStdString(k.name),
 								 QString::fromStdString(k.type),
 								 QString::fromStdString(k.id),
-								 QString::fromStdString(k.host),
-								 QString::fromStdString(k.uid)));
+								 QString::fromStdString(k.host)));
 		ui->streamList->addItem(item);
 	}
 }
@@ -384,9 +383,8 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 	return requestedAndAvailableStreams;
 }
 
-void MainWindow::startRecording() {
+MainWindow::StartResult MainWindow::startRecording() {
 	if (!currentRecording) {
-
 		// automatically refresh streams
 		const std::vector<lsl::stream_info> requestedAndAvailableStreams = refreshStreams();
 
@@ -399,7 +397,7 @@ void MainWindow::startRecording() {
 					QMessageBox::Yes | QMessageBox::No, this);
 				msgBox.setInformativeText("Do you want to start recording anyway?");
 				msgBox.setDefaultButton(QMessageBox::No);
-				if (msgBox.exec() != QMessageBox::Yes) return;
+				if (msgBox.exec() != QMessageBox::Yes) return StartResult::Failed;
 			}
 
 			if (requestedAndAvailableStreams.size() == 0) {
@@ -407,7 +405,7 @@ void MainWindow::startRecording() {
 					"You have selected no streams", QMessageBox::Yes | QMessageBox::No, this);
 				msgBox.setInformativeText("Do you want to start recording anyway?");
 				msgBox.setDefaultButton(QMessageBox::No);
-				if (msgBox.exec() != QMessageBox::Yes) return;
+				if (msgBox.exec() != QMessageBox::Yes) return StartResult::Failed;
 			}
 		}
 
@@ -415,13 +413,13 @@ void MainWindow::startRecording() {
 		QString recFilename = replaceFilename(QDir::cleanPath(ui->lineEdit_template->text()));
 		if (recFilename.isEmpty()) {
 			QMessageBox::critical(this, "Filename empty", "Can not record without a file name");
-			return;
+			return StartResult::Failed;
 		}
 		if (ui->rootEdit->text().trimmed().isEmpty()) {
 			QMessageBox::critical(this, "Study Root empty",
 				"Can not record without a Study Root folder. "
 				"Please set a Study Root before recording.");
-			return;
+			return StartResult::Failed;
 		}
 		recFilename.prepend(QDir::cleanPath(ui->rootEdit->text()) + '/');
 
@@ -430,7 +428,7 @@ void MainWindow::startRecording() {
 			if (recFileInfo.isDir()) {
 				QMessageBox::warning(
 					this, "Error", "Recording path already exists and is a directory");
-				return;
+				return StartResult::Failed;
 			}
 			QString rename_to = recFileInfo.absolutePath() + '/' + recFileInfo.baseName() +
 								"_old%1." + recFileInfo.suffix();
@@ -441,7 +439,7 @@ void MainWindow::startRecording() {
 			if (!QFile::rename(recFileInfo.absoluteFilePath(), newname)) {
 				QMessageBox::warning(this, "Permissions issue",
 					"Cannot rename the file " + recFilename + " to " + newname);
-				return;
+				return StartResult::Failed;
 			}
 			qInfo() << "Moved existing file to " << newname;
 			recFileInfo.refresh();
@@ -452,7 +450,7 @@ void MainWindow::startRecording() {
 			QMessageBox::warning(this, "Permissions issue",
 				"Can not create the directory " + recFileInfo.dir().path() +
 					". Please check your permissions.");
-			return;
+			return StartResult::Failed;
 		}
 
 		std::vector<std::string> watchfor;
@@ -483,11 +481,13 @@ void MainWindow::startRecording() {
 		ui->stopButton->setEnabled(true);
 		ui->startButton->setEnabled(false);
 		startTime = (int)lsl::local_clock();
+		return StartResult::Started;
 
 	} else if (!hideWarnings) {
 		QMessageBox::information(
 			this, "Already recording", "The recording is already running", QMessageBox::Ok);
 	}
+	return StartResult::AlreadyRecording;
 }
 
 void MainWindow::stopRecording() {
@@ -527,15 +527,16 @@ bool MainWindow::hasSelectedStreams() const {
 	return false;
 }
 
-void MainWindow::selectStreams(const QString &query) {
+MainWindow::SelectResult MainWindow::selectStreams(const QString &query) {
 	updateKnownStreamSelectionFromUi();
 	std::vector<lsl::stream_info> matchedStreams;
 	try {
 		matchedStreams = lsl::resolve_stream(query.toStdString(), 0, 1.0);
 	} catch (std::exception &e) {
 		qWarning() << "Invalid stream selection query" << query << ":" << e.what();
-		return;
+		return SelectResult::InvalidQuery;
 	}
+	if (matchedStreams.empty()) return SelectResult::NoMatches;
 
 	for (const auto &stream : matchedStreams) {
 		bool known = false;
@@ -551,6 +552,7 @@ void MainWindow::selectStreams(const QString &query) {
 		missingStreams.remove(info_to_listName(stream));
 	}
 	rebuildStreamList();
+	return SelectResult::Selected;
 }
 
 void MainWindow::buildBidsTemplate() {
@@ -693,7 +695,7 @@ void MainWindow::enableRcs(bool bEnable) {
 		connect(rcs.get(), &RemoteControlSocket::filename, this, &MainWindow::rcsUpdateFilename);
 		connect(rcs.get(), &RemoteControlSocket::select_all, this, &MainWindow::selectAllStreams);
 		connect(rcs.get(), &RemoteControlSocket::select_none, this, &MainWindow::selectNoStreams);
-		connect(rcs.get(), &RemoteControlSocket::select_stream, this, &MainWindow::selectStreams);
+		connect(rcs.get(), &RemoteControlSocket::select_stream, this, &MainWindow::rcsSelectStreams);
 	}
 	bool oldState = ui->rcsCheckBox->blockSignals(true);
 	ui->rcsCheckBox->setChecked(bEnable);
@@ -711,6 +713,10 @@ void MainWindow::rcsStartRecording(QTcpSocket *sock) {
 	// Remote start should record the current stream selection. Do not call
 	// selectAllStreams() here; doing so would override TCP `select <query>` commands.
 	// hideWarnings suppresses non-critical confirmation dialogs for remote control.
+	if (currentRecording) {
+		if (sock) sock->write("WARNING already recording");
+		return;
+	}
 	if (!hasSelectedStreams()) {
 		qWarning() << "Remote start rejected: no streams selected";
 		if (sock) sock->write("ERROR no streams selected");
@@ -718,9 +724,26 @@ void MainWindow::rcsStartRecording(QTcpSocket *sock) {
 	}
 	const bool oldHideWarnings = hideWarnings;
 	hideWarnings = true;
-	startRecording();
+	const StartResult result = startRecording();
 	hideWarnings = oldHideWarnings;
-	if (sock) sock->write("OK");
+	if (!sock) return;
+	if (result == StartResult::Started)
+		sock->write("OK");
+	else if (result == StartResult::AlreadyRecording)
+		sock->write("WARNING already recording");
+	else
+		sock->write("ERROR failed to start recording");
+}
+
+void MainWindow::rcsSelectStreams(const QString &query, QTcpSocket *sock) {
+	const SelectResult result = selectStreams(query);
+	if (!sock) return;
+	if (result == SelectResult::Selected)
+		sock->write("OK");
+	else if (result == SelectResult::NoMatches)
+		sock->write("WARNING no streams matched");
+	else
+		sock->write("ERROR invalid select query");
 }
 
 void MainWindow::rcsStopRecording() {

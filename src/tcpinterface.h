@@ -21,7 +21,7 @@ signals:
 	void filename(QString s);
 	void select_all();
 	void select_none();
-	void select_stream(QString query);
+	void select_stream(QString query, QTcpSocket *sock);
 
 public slots:
 	void addClient();
