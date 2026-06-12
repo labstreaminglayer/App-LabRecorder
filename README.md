@@ -87,10 +87,13 @@ If you check the box to EnableRCS then LabRecorder exposes some rudimentary cont
 Currently supported commands include:
 * `select all`
 * `select none`
-* `start`
+* `select <query>` - checks streams matching an LSL resolver predicate such as `name='BioSemi'`, `type='EEG'`, or `name='BioSemi' and hostname='LabPC1'`.
+* `start` - starts recording the current stream selection; returns an error if no streams are selected.
 * `stop`
 * `update`
 * `filename ...`
+
+Commands respond with `OK`, `WARNING ...`, or `ERROR ...`.
 
 `filename` is followed by a series of space-delimited options enclosed in curly braces. e.g. {root:C:\root_data_dir}
 * `root` - Sets the root data directory.
