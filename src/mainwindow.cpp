@@ -105,6 +105,21 @@ void MainWindow::statusUpdate() const {
 								 .arg(QDir::toNativeSeparators(recFilename),
 									 QTime(0,0).addSecs(elapsed).toString("hh:mm:ss"),
 									 QString::number(size / 1000));
+
+		// Check stream statuses for connection warnings
+		const auto statuses = currentRecording->get_stream_status();
+		QStringList warnings;
+		for (const auto &s : statuses) {
+			if (s.connection_failed) {
+				warnings << QString::fromStdString(s.name) + " (TCP timeout)";
+			}
+		}
+		for (const auto &m : missingStreams) {
+			warnings << m + " (offline)";
+		}
+		if (!warnings.isEmpty()) {
+			timeString += QStringLiteral(" | WARNING: Cannot connect to %1").arg(warnings.join(", "));
+		}
 		statusBar()->showMessage(timeString);
 	}
 }
