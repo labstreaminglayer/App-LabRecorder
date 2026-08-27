@@ -88,6 +88,14 @@ recording::recording(const std::string &filename, const std::vector<lsl::stream_
 	: file_(filename), offsets_enabled_(collect_offsets), unsorted_(false), streamid_(0),
 	  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
 	  sync_options_by_stream_(std::move(syncOptions)) {
+	// register telemetry trackers for streams
+	for (const auto &stream : streams) {
+		StreamTelemetry t;
+		t.name = stream.name();
+		t.host = stream.hostname();
+		t.uid = stream.uid();
+		stream_telemetry_.push_back(t);
+	}
 	// create a recording thread for each stream
 	for (const auto &stream : streams)
 		stream_threads_.emplace_back(
@@ -186,6 +194,29 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 		// obtain a fresh streamid
 		streamid_t streamid = fresh_streamid();
 
+		// Find or create telemetry tracker for this stream
+		std::shared_ptr<std::atomic<uint64_t>> sample_counter;
+		std::shared_ptr<std::atomic<bool>> conn_failed;
+		{
+			std::lock_guard<std::mutex> lock(telemetry_mut_);
+			auto it = std::find_if(stream_telemetry_.begin(), stream_telemetry_.end(),
+				[&](const StreamTelemetry &t) {
+					return t.uid == src.uid() || (t.name == src.name() && t.host == src.hostname());
+				});
+			if (it != stream_telemetry_.end()) {
+				sample_counter = it->sample_count;
+				conn_failed = it->connection_failed;
+			} else {
+				StreamTelemetry t;
+				t.name = src.name();
+				t.host = src.hostname();
+				t.uid = src.uid();
+				sample_counter = t.sample_count;
+				conn_failed = t.connection_failed;
+				stream_telemetry_.push_back(t);
+			}
+		}
+
 		inlet_p in;
 
 		// --- headers phase
@@ -205,6 +236,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 				in->open_stream(max_open_wait);
 				std::cout << "Opened the stream " << src.name() << "." << std::endl;
 			} catch (lsl::timeout_error &) {
+				if (conn_failed) conn_failed->store(true);
 				std::cout
 					<< "Subscribing to the stream " << src.name()
 					<< " is taking relatively long; collection from this stream will be delayed."
@@ -238,27 +270,27 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			switch (src.channel_format()) {
 			case lsl::cf_int8:
 				typed_transfer_loop<char>(streamid, nominal_srate, in, first_timestamp,
-					last_timestamp, sample_count);
+					last_timestamp, sample_count, sample_counter);
 				break;
 			case lsl::cf_int16:
 				typed_transfer_loop<int16_t>(streamid, nominal_srate, in, first_timestamp,
-					last_timestamp, sample_count);
+					last_timestamp, sample_count, sample_counter);
 				break;
 			case lsl::cf_int32:
 				typed_transfer_loop<int32_t>(streamid, nominal_srate, in, first_timestamp,
-					last_timestamp, sample_count);
+					last_timestamp, sample_count, sample_counter);
 				break;
 			case lsl::cf_float32:
 				typed_transfer_loop<float>(streamid, nominal_srate, in, first_timestamp,
-					last_timestamp, sample_count);
+					last_timestamp, sample_count, sample_counter);
 				break;
 			case lsl::cf_double64:
 				typed_transfer_loop<double>(streamid, nominal_srate, in, first_timestamp,
-					last_timestamp, sample_count);
+					last_timestamp, sample_count, sample_counter);
 				break;
 			case lsl::cf_string:
 				typed_transfer_loop<std::string>(streamid, nominal_srate, in,
-					first_timestamp, last_timestamp, sample_count);
+					first_timestamp, last_timestamp, sample_count, sample_counter);
 				break;
 			default:
 				// unsupported channel format
@@ -414,7 +446,8 @@ void recording::enter_footers_phase(bool phase_locked) {
 
 template <class T>
 void recording::typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
-	double &first_timestamp, double &last_timestamp, uint64_t &sample_count) {
+	double &first_timestamp, double &last_timestamp, uint64_t &sample_count,
+	std::shared_ptr<std::atomic<uint64_t>> sample_counter) {
 	// optionally start an offset collection thread for this stream
 	std::atomic<bool> offset_shutdown{false};
 	thread_p offset_thread(offsets_enabled_ ? new std::thread(&recording::record_offsets, this,
@@ -435,6 +468,7 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			timestamps.push_back(first_timestamp);
 			file_.write_data_chunk(streamid, timestamps, chunk, (uint32_t)in->get_channel_count());
 			sample_count += timestamps.size();
+			if (sample_counter) sample_counter->store(sample_count);
 		}
 
 		auto next_pull = Clock::now();
@@ -454,6 +488,7 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			if (!timestamps.empty()) {
 				file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
 				sample_count += timestamps.size();
+				if (sample_counter) sample_counter->store(sample_count);
 			}
 
 			next_pull += chunk_interval;
@@ -472,4 +507,14 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 	offset_shutdown = true;
 	shutdown_cv_.notify_all();
 	timed_join_or_detach(offset_thread);
+}
+
+std::vector<StreamStatusInfo> recording::get_stream_status() const {
+	std::lock_guard<std::mutex> lock(telemetry_mut_);
+	std::vector<StreamStatusInfo> result;
+	for (const auto &t : stream_telemetry_) {
+		result.push_back({t.name, t.host, t.sample_count ? t.sample_count->load() : 0,
+			t.connection_failed ? t.connection_failed->load() : false});
+	}
+	return result;
 }

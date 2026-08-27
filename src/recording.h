@@ -43,6 +43,12 @@ using offset_list = std::list<std::pair<double, double>>;
 // a map from streamid to offset_list
 using offset_lists = std::map<streamid_t, offset_list>;
 
+struct StreamStatusInfo {
+	std::string name;
+	std::string host;
+	uint64_t sample_count;
+	bool connection_failed;
+};
 
 /**
  * A recording process using the lab streaming layer.
@@ -74,7 +80,21 @@ public:
 
 	void requestStop() noexcept;
 
+	/// Get current status and sample count for each stream being recorded
+	std::vector<StreamStatusInfo> get_stream_status() const;
+
 private:
+	struct StreamTelemetry {
+		std::string name;
+		std::string host;
+		std::string uid;
+		std::shared_ptr<std::atomic<uint64_t>> sample_count = std::make_shared<std::atomic<uint64_t>>(0);
+		std::shared_ptr<std::atomic<bool>> connection_failed = std::make_shared<std::atomic<bool>>(false);
+	};
+
+	std::vector<StreamTelemetry> stream_telemetry_;
+	mutable std::mutex telemetry_mut_;
+
 	// the file stream
 	XDFWriter file_; // the file output stream
 	// static information
@@ -141,7 +161,8 @@ private:
 	// sample collection loop for a numeric stream
 	template <class T>
 	void typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
-		double &first_timestamp, double &last_timestamp, uint64_t &sample_count);
+		double &first_timestamp, double &last_timestamp, uint64_t &sample_count,
+		std::shared_ptr<std::atomic<uint64_t>> sample_counter = nullptr);
 
 	// === phase registration & condition checks ===
 	// writing is coordinated across threads in three phases to keep the file chunks sorted
