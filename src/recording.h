@@ -29,8 +29,8 @@ const auto max_footers_wait = std::chrono::seconds(2);
 // maximum waiting time for subscribing to a stream, in seconds (if exceeded, stream subscription
 // will take place later)
 const double max_open_wait = 5;
-// maximum time that we wait to join a thread, in seconds
-const std::chrono::seconds max_join_wait(5);
+// maximum time that we wait to join a thread
+const auto max_join_wait = std::chrono::seconds(2);
 
 using streamid_t = uint32_t;
 
@@ -87,6 +87,10 @@ private:
 
 	// phase-of-recording state (headers, streaming data, or footers)
 	std::atomic<bool> shutdown_;   // whether we are trying to shut down
+	std::condition_variable shutdown_cv_; // condition variable to wake threads immediately on shutdown
+	std::mutex shutdown_mut_;             // mutex for shutdown condition variable
+	std::vector<inlet_p> active_inlets_;  // active inlets to abort on teardown
+	std::mutex inlets_mut_;               // mutex to protect active inlets list
 	uint32_t headers_to_finish_;   // the number of streams that still need to write their header
 								   // (i.e., are not yet ready to write streaming content)
 	uint32_t streaming_to_finish_; // the number of streams that still need to finish the streaming

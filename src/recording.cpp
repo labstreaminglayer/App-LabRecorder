@@ -1,6 +1,7 @@
 #include "recording.h"
 //#include "conversions.h"
 
+#include <algorithm>
 #include <set>
 #include <sstream>
 #ifdef XDFZ_SUPPORT
@@ -36,7 +37,7 @@ inline bool timed_join(thread_p &thread, std::chrono::milliseconds duration = ma
 	const auto start = Clock::now();
 	while (Clock::now() - start < duration) {
 		if (try_join_once(thread)) return true;
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+		std::this_thread::sleep_for(std::chrono::milliseconds(20));
 	}
 	return false;
 }
@@ -72,7 +73,7 @@ inline void timed_join_or_detach(
 			else
 				++it;
 		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+		std::this_thread::sleep_for(std::chrono::milliseconds(20));
 	}
 	if (!threads.empty()) {
 		std::cout << threads.size() << " stream threads still running!" << std::endl;
@@ -103,10 +104,21 @@ recording::~recording() {
 	try {
 		// set the shutdown flag (from now on no more new streams)
 		shutdown_ = true;
+		shutdown_cv_.notify_all();
+
+		// close all inlets to unblock any pending network I/O immediately
+		{
+			std::lock_guard<std::mutex> lock(inlets_mut_);
+			for (auto &in : active_inlets_) {
+				if (in) {
+					try { in->close_stream(); } catch (...) {}
+				}
+			}
+		}
 
 		// stop the threads
 		timed_join_or_detach(stream_threads_, max_join_wait);
-		if (!timed_join(boundary_thread_, max_join_wait + boundary_interval)) {
+		if (!timed_join(boundary_thread_, max_join_wait)) {
 			std::cout << "boundary_thread didn't finish in time!" << std::endl;
 			boundary_thread_->detach();
 		}
@@ -119,6 +131,15 @@ recording::~recording() {
 void recording::requestStop() noexcept
 {
 	shutdown_ = true;
+	shutdown_cv_.notify_all();
+	{
+		std::lock_guard<std::mutex> lock(inlets_mut_);
+		for (auto &in : active_inlets_) {
+			if (in) {
+				try { in->close_stream(); } catch (...) {}
+			}
+		}
+	}
 }
 
 void recording::record_from_query_results(const std::string &query) {
@@ -173,6 +194,10 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 
 			// open an inlet to read from (and subscribe to data immediately)
 			in.reset(new lsl::stream_inlet(src));
+			{
+				std::lock_guard<std::mutex> lock(inlets_mut_);
+				active_inlets_.push_back(in);
+			}
 			auto it = sync_options_by_stream_.find(src.name() + " (" + src.hostname() + ")");
 			if (it != sync_options_by_stream_.end()) in->set_postprocessing(it->second);
 
@@ -276,6 +301,12 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			leave_footers_phase(phase_locked);
 			throw;
 		}
+		if (in) {
+			std::lock_guard<std::mutex> lock(inlets_mut_);
+			active_inlets_.erase(
+				std::remove(active_inlets_.begin(), active_inlets_.end(), in),
+				active_inlets_.end());
+		}
 	} catch (std::exception &e) {
 		std::cout << "Error in the record_from_streaminfo thread: " << e.what() << std::endl;
 	}
@@ -285,7 +316,15 @@ void recording::record_boundaries() {
 	try {
 		auto next_boundary = Clock::now() + boundary_interval;
 		while (!shutdown_) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			{
+				std::unique_lock<std::mutex> cv_lock(shutdown_mut_);
+				if (shutdown_cv_.wait_for(cv_lock, std::chrono::milliseconds(500), [this] {
+						return shutdown_.load();
+					})) {
+					break;
+				}
+			}
+
 			if (Clock::now() > next_boundary) {
 				file_.write_boundary_chunk();
 				next_boundary = Clock::now() + boundary_interval;
@@ -301,7 +340,15 @@ void recording::record_offsets(
 	try {
 		while (!shutdown_ && !offset_shutdown) {
 			// sleep for the interval
-			std::this_thread::sleep_for(offset_interval);
+			{
+				std::unique_lock<std::mutex> cv_lock(shutdown_mut_);
+				if (shutdown_cv_.wait_for(cv_lock, offset_interval, [this, &offset_shutdown] {
+						return shutdown_.load() || offset_shutdown.load();
+					})) {
+					break;
+				}
+			}
+
 			// query the time offset
 			double offset, now;
 			try {
@@ -311,9 +358,10 @@ void recording::record_offsets(
 				std::cerr << "Timeout in time correction query for stream " << streamid
 						  << std::endl;
 			}
+			if (shutdown_ || offset_shutdown) break;
 			file_.write_stream_offset(streamid, now, offset);
 			// also append to the offset lists
-			std::lock_guard<std::mutex> lock(offset_mut_);
+			std::lock_guard<std::mutex> offset_lock(offset_mut_);
 			offset_lists_[streamid].emplace_back(now - offset, offset);
 		}
 	} catch (std::exception &e) {
@@ -382,8 +430,8 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		// Pull the first sample
 		first_timestamp = 0.0;
 		while(!shutdown_ && first_timestamp == 0.0)
-			first_timestamp = last_timestamp = in->pull_sample(chunk, 4.0);
-		if (!shutdown_) {
+			first_timestamp = last_timestamp = in->pull_sample(chunk, 0.1);
+		if (!shutdown_ && first_timestamp != 0.0) {
 			timestamps.push_back(first_timestamp);
 			file_.write_data_chunk(streamid, timestamps, chunk, (uint32_t)in->get_channel_count());
 			sample_count += timestamps.size();
@@ -403,17 +451,25 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 					last_timestamp = ts;
 			}
 			// write the actual chunk
-			file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
-			sample_count += timestamps.size();
+			if (!timestamps.empty()) {
+				file_.write_data_chunk(streamid, timestamps, chunk, in->get_channel_count());
+				sample_count += timestamps.size();
+			}
 
 			next_pull += chunk_interval;
-			std::this_thread::sleep_until(next_pull);
+			std::unique_lock<std::mutex> cv_lock(shutdown_mut_);
+			if (shutdown_cv_.wait_until(cv_lock, next_pull, [this] { return shutdown_.load(); })) {
+				break;
+			}
 		}
 	} catch (std::exception &e) {
 		std::cerr << "Error in transfer thread: " << e.what() << std::endl;
 		offset_shutdown = true;
+		shutdown_cv_.notify_all();
 		timed_join_or_detach(offset_thread);
 		throw;
 	}
+	offset_shutdown = true;
+	shutdown_cv_.notify_all();
 	timed_join_or_detach(offset_thread);
 }
