@@ -38,10 +38,10 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { name: "Ubuntu 22.04", os: ubuntu-22.04 }
-          - { name: "Ubuntu 24.04", os: ubuntu-24.04 }
-          - { name: "macOS", os: macos-14, cmake_extra: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"' }
-          - { name: "Windows", os: windows-latest }
+          - { name: "Ubuntu 22.04", os: ubuntu-22.04, cli: "install/bin/LabRecorderCLI" }
+          - { name: "Ubuntu 24.04", os: ubuntu-24.04, cli: "install/bin/LabRecorderCLI" }
+          - { name: "macOS", os: macos-14, cmake_extra: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"', cli: "install/LabRecorderCLI" }
+          - { name: "Windows", os: windows-latest, cli: "install/LabRecorderCLI.exe" }
 
     steps:
       - name: Checkout
@@ -97,17 +97,27 @@ jobs:
       # -----------------------------------------------------------------------
       # Test CLI
       # -----------------------------------------------------------------------
-      - name: Test CLI (Linux)
-        if: runner.os == 'Linux'
-        run: ./install/bin/LabRecorderCLI --help || true
+      - name: Test CLI
+        shell: bash
+        run: ./${{ matrix.config.cli }} --help || true
 
-      - name: Test CLI (macOS)
-        if: runner.os == 'macOS'
-        run: ./install/LabRecorderCLI --help || true
+      # -----------------------------------------------------------------------
+      # Integration test: teardown latency and XDF integrity
+      # -----------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-      - name: Test CLI (Windows)
-        if: runner.os == 'Windows'
-        run: ./install/LabRecorderCLI.exe --help || true
+      - name: Install integration test dependencies
+        run: python -m pip install --upgrade pip pylsl pyxdf
+
+      # pylsl brings its own liblsl; it only has to speak the same wire protocol as the liblsl
+      # bundled with the recorder, not be the same build. Set PYLSL_LIB here if that ever stops
+      # holding.
+      - name: Test recording teardown
+        shell: bash
+        run: python scripts/test_recording_teardown.py --bin "${{ matrix.config.cli }}"
 
       # -----------------------------------------------------------------------
       # Package
