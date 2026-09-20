@@ -49,6 +49,8 @@ private slots:
 	void startRecording(void);
 	void stopRecording(void);
 	void selectAllStreams();
+	void selectStreams(const QString& search_str);
+	void selectRegexStreams(const QString& regex_pattern);
 	void selectNoStreams();
 	void buildFilename();
 	void buildBidsTemplate();
