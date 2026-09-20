@@ -30,6 +30,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Build Options
 # =============================================================================
 option(LABRECORDER_BUILD_GUI "Build the GUI application (requires Qt6)" ON)
+option(LABRECORDER_BUILD_TESTING "Build deterministic recording tests" OFF)
 
 # =============================================================================
 # LSL Discovery Options
@@ -217,6 +218,23 @@ target_link_libraries(${PROJECT_NAME}CLI PRIVATE
     Threads::Threads
     LSL::lsl
 )
+
+if(LABRECORDER_BUILD_TESTING)
+    enable_testing()
+    add_executable(test_recording_finalization
+        tests/recording_finalization.cpp
+        src/recording.cpp
+    )
+    # Compile the real recording implementation against a controlled inlet. Do not link
+    # liblsl into this target: its timeout behavior is supplied by the test double.
+    target_include_directories(test_recording_finalization PRIVATE tests/fake_lsl src)
+    target_link_libraries(test_recording_finalization PRIVATE xdfwriter Threads::Threads)
+    foreach(scenario IN ITEMS delayed unavailable stalled)
+        add_test(NAME recording_finalization_${scenario}
+            COMMAND test_recording_finalization ${scenario})
+        set_tests_properties(recording_finalization_${scenario} PROPERTIES TIMEOUT 20)
+    endforeach()
+endif()
 
 # =============================================================================
 # Copy config file to build directory for testing

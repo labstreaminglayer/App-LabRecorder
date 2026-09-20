@@ -378,6 +378,27 @@ def case_gated_stream_is_drained(cli_path, xdf_path, max_stop):
     del eeg
 
 
+def case_clock_offsets_collected(cli_path, xdf_path, max_stop):
+    """Run past the first offset query and verify short waits still obtain its result."""
+    eeg, markers = make_outlets()
+    time.sleep(SETTLE)
+    with recorder(cli_path, xdf_path) as rec:
+        rec.wait_until_collecting()
+        # Offset queries begin after five seconds. Allow the local LSL probe exchange to
+        # complete across several 200 ms waits before stopping.
+        push_eeg_for(eeg, 6.5)
+        duration = rec.stop()
+
+    check_stop(duration, max_stop)
+    streams, _ = load_xdf_strict(xdf_path)
+    for name in NAMES:
+        stream = stream_by_name(streams, name)
+        check_footer(stream)
+        offsets = stream["footer"]["info"]["clock_offsets"][0]
+        check(offsets and offsets.get("offset"), f"stream {name!r} has no clock offsets")
+    del eeg, markers
+
+
 CASES = [
     ("normal stop", case_normal_stop),
     ("stop before first sample", case_stop_before_first_sample),
@@ -385,6 +406,7 @@ CASES = [
     ("repeated shutdown", case_repeated_shutdown),
     ("no buffered samples lost", case_no_buffered_samples_lost),
     ("gated stream is drained", case_gated_stream_is_drained),
+    ("clock offsets collected", case_clock_offsets_collected),
 ]
 
 

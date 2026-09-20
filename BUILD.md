@@ -92,6 +92,27 @@ The command line install feature does not put build products in the sample place
 If any significant changes are made to the project (such as changing Qt or Visual Stuido version) it is recommended that you delete or rename the build folder and start over. Various partial cleaning processes do not work well.
 
 
+## Recording tests
+
+Enable the deterministic shutdown tests when configuring, then build and run CTest:
+
+```sh
+cmake -S . -B build -DLABRECORDER_BUILD_TESTING=ON
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+These tests compile the recording implementation and XDF writer against a controlled inlet.
+They cover delayed clock measurements, stopping during an unavailable measurement, and a
+worker that exceeds the join warning deadline. Every case checks that the file is finalized
+immediately when the recording is destroyed.
+
+The real-stream integration suite additionally requires `pylsl` and `pyxdf`:
+
+```sh
+python scripts/test_recording_teardown.py --bin /path/to/LabRecorderCLI
+```
+
 ## Linux
 
     * Ubuntu (/Debian)
@@ -122,4 +143,3 @@ If any significant changes are made to the project (such as changing Qt or Visua
 1. You may need to specify additional cmake options.
  . Build everything and copy the files to the `install` folder:
     * `cmake --build . --target install`
-

@@ -31,8 +31,8 @@ public:
 		bool collect_offsets = true);
 
 	/** Destructor.
-	 * Asks the recording threads to finish and waits a bounded amount of time for them. A thread
-	 * that is still stuck after that is left running; the file is closed once it finishes.
+	 * Stops and joins every recording thread, then closes and flushes the file. Network waits
+	 * observe shutdown promptly; a slow disk write must finish before destruction returns.
 	 */
 	~recording();
 
@@ -41,8 +41,7 @@ public:
 
 private:
 	struct impl;
-	/// Shared rather than unique: a recording thread that had to be left running keeps the state
-	/// it writes into -- the file, the mutexes, the offset lists -- alive until it is done.
+	/// Workers retain the state while running; destruction joins them before releasing it.
 	std::shared_ptr<impl> impl_;
 };
 

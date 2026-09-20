@@ -48,7 +48,7 @@ const double network_poll_interval = 0.2;
 // time granted to the stream threads to drain their inlets and write their footers before the
 // inlets are forcibly closed
 const auto teardown_grace = std::chrono::milliseconds(300);
-// maximum time that we wait to join a thread
+// time before reporting a slow worker; finalization still waits for it to finish
 const auto max_join_wait = std::chrono::seconds(2);
 
 // steady_clock (not high_resolution_clock, which is an alias for the wall clock in some standard
@@ -83,15 +83,14 @@ template <class F> worker_p spawn_worker(F &&fn) {
 	auto task = std::make_shared<std::packaged_task<void()>>(std::forward<F>(fn));
 	auto w = std::make_unique<worker>();
 	w->done = task->get_future();
-	// the task is kept alive by the lambda, so the worker may be detached safely
+	// the task is kept alive by the lambda until its body returns
 	w->thread = std::thread([task] { (*task)(); });
 	return w;
 }
 
 // pointer to a stream inlet
 using inlet_p = std::shared_ptr<lsl::stream_inlet>;
-// pointer to a per-stream flag asking that stream's offset thread to finish. Shared rather than
-// referenced so that an offset thread which had to be detached cannot outlive its flag.
+// Per-stream stop flag shared with the offset worker until it has been joined.
 using offset_flag_p = std::shared_ptr<std::atomic<bool>>;
 // a list of clock offset estimates (time,value)
 using offset_list = std::list<std::pair<double, double>>;
@@ -99,6 +98,8 @@ using offset_list = std::list<std::pair<double, double>>;
 using offset_lists = std::map<streamid_t, offset_list>;
 
 namespace {
+
+std::mutex log_mut;
 
 /// Write one line, atomically with respect to the other recording threads.
 ///
@@ -109,7 +110,6 @@ template <class... Args> void log_line(std::ostream &out, Args &&...args) {
 	std::ostringstream line;
 	(line << ... << std::forward<Args>(args));
 	line << '\n';
-	static std::mutex log_mut;
 	std::lock_guard<std::mutex> lock(log_mut);
 	out << line.str() << std::flush;
 }
@@ -153,16 +153,15 @@ inline bool timed_join(worker_p &w, std::chrono::milliseconds duration = max_joi
 }
 
 /**
- * @brief timed_join_or_detach	Join the worker or detach it if not possible within specified
- * duration
+ * @brief join_worker	Join the worker, reporting when it exceeds the expected duration
  * @param w						unique_ptr to a worker. Will be reset either way
- * @param duration				max duration to wait
+ * @param duration				time before reporting that finalization is still waiting
  */
-inline void timed_join_or_detach(worker_p &w, std::chrono::milliseconds duration = max_join_wait) {
+inline void join_worker(worker_p &w, std::chrono::milliseconds duration = max_join_wait) {
 	if (!timed_join(w, duration)) {
-		w->thread.detach();
+		log_err("Waiting for a recording worker to finish before closing the file.");
+		w->thread.join();
 		w.reset();
-		log_err("Thread didn't join in time!");
 	}
 }
 
@@ -184,16 +183,16 @@ inline void timed_join_some(std::list<worker_p> &workers, std::chrono::milliseco
 }
 
 /**
- * @brief timed_join_or_detach	Join the workers or detach those that don't finish in time
+ * @brief join_workers	Join all workers before their writer can be destroyed
  * @param workers				list of workers. Guaranteed to be empty afterwards.
  * @param duration				duration to wait, shared across all workers
  */
-inline void timed_join_or_detach(
+inline void join_workers(
 	std::list<worker_p> &workers, std::chrono::milliseconds duration = max_join_wait) {
 	timed_join_some(workers, duration);
 	if (!workers.empty()) {
 		log_out(workers.size(), " stream threads still running!");
-		for (auto &w : workers) w->thread.detach();
+		for (auto &w : workers) w->thread.join();
 		workers.clear();
 	}
 }
@@ -201,11 +200,10 @@ inline void timed_join_or_detach(
 /**
  * The recording state, and the thread bodies that operate on it.
  *
- * Every recording thread holds a shared_ptr to this, as does the recording object. A thread that
- * could not be joined within the teardown deadline is left running rather than blocking the
- * caller, which is typically the UI thread, so the state it writes into has to be able to outlive
- * the recording object. Whoever drops the last reference destroys it, and that is what closes the
- * file.
+ * Every recording thread holds a shared_ptr to this, as does the recording object.
+ * stop_and_join() joins all workers, including nested workers, before the recording handle
+ * releases its reference and closes the file. A fast stop must not leave buffered output owned
+ * by a detached worker that process exit could kill before the writer flushes.
  */
 struct recording::impl : std::enable_shared_from_this<recording::impl> {
 	impl(const std::string &filename, std::map<std::string, int> syncOptions, bool collect_offsets)
@@ -213,9 +211,7 @@ struct recording::impl : std::enable_shared_from_this<recording::impl> {
 		  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
 		  sync_options_by_stream_(std::move(syncOptions)) {}
 
-	/// Deliberately joins nothing: the last recording thread to finish drops the final reference,
-	/// so this runs on that very thread and joining here would be a self-join. stop_and_join()
-	/// leaves the worker containers empty, so there is nothing left to clean up.
+	/// stop_and_join() leaves the worker containers empty before this state is destroyed.
 	~impl() = default;
 
 	/// Spawn the recording threads. Separate from the constructor because the threads need a
@@ -223,8 +219,8 @@ struct recording::impl : std::enable_shared_from_this<recording::impl> {
 	void start(
 		const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor);
 
-	/// Ask the threads to finish and wait a bounded amount of time for them, leaving any that are
-	/// still stuck running. Called from the recording object, never from a recording thread.
+	/// Ask the threads to finish and join them all before closing the file.
+	/// Called from the recording object, never from a recording thread.
 	void stop_and_join() noexcept;
 
 	void requestStop() noexcept;
@@ -351,8 +347,7 @@ struct recording::impl : std::enable_shared_from_this<recording::impl> {
 
 void recording::impl::start(
 	const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor) {
-	// the threads hold a reference to us, so the state they write into outlives a teardown that
-	// had to leave one of them running
+	// Each worker owns its state until it has finished; stop_and_join() joins them all.
 	auto self = shared_from_this();
 	// create a recording thread for each stream
 	for (const auto &stream : streams)
@@ -377,9 +372,9 @@ void recording::impl::stop_and_join() noexcept {
 		if (!stream_threads_.empty()) {
 			// a thread is stuck in a blocking socket call; closing its inlet aborts that call
 			close_active_inlets();
-			timed_join_or_detach(stream_threads_, max_join_wait);
+			join_workers(stream_threads_, max_join_wait);
 		}
-		timed_join_or_detach(boundary_thread_, max_join_wait);
+		join_worker(boundary_thread_, max_join_wait);
 		log_out("Closing the file.");
 	} catch (std::exception &e) {
 		log_out("Error while closing the recording: ", e.what());
@@ -517,7 +512,7 @@ void recording::impl::record_from_query_results(const std::string &query) {
 			if (wait_for_shutdown(resolve_pause)) break;
 		}
 		// wait for all our threads to join
-		timed_join_or_detach(threads, max_join_wait);
+		join_workers(threads, max_join_wait);
 	} catch (std::exception &e) {
 		log_out("Error in the record_from_query_results thread: ", e.what());
 	}
@@ -668,16 +663,22 @@ void recording::impl::record_offsets(
 			// sleep for the interval
 			if (wait_for_shutdown(offset_interval, offset_shutdown.get())) break;
 
-			// Query the time offset in one call with the whole budget, not in short slices: the
-			// query needs a round trip to complete, and restarting it every network_poll_interval
-			// means it never finishes, so no offset is ever recorded. Teardown does not depend on
-			// this returning quickly -- the transfer thread stops waiting for us after
-			// teardown_grace and leaves us running, and we keep the file alive while we do.
-			double offset, now;
-			try {
-				offset = in->time_correction(max_time_correction_wait);
-				now = lsl::local_clock();
-			} catch (lsl::timeout_error &) {
+			// liblsl's background measurement survives a time_correction() timeout. Polling
+			// waits for that same result; it does not restart the packet exchange.
+			const auto deadline = Clock::now() + seconds_to_duration(max_time_correction_wait);
+			double offset = 0, now = 0;
+			bool have_offset = false;
+			while (!shutdown_ && !*offset_shutdown && Clock::now() < deadline) {
+				const double remaining = std::chrono::duration<double>(deadline - Clock::now()).count();
+				try {
+					offset = in->time_correction(std::max(0.0, std::min(network_poll_interval, remaining)));
+					now = lsl::local_clock();
+					have_offset = true;
+					break;
+				} catch (lsl::timeout_error &) {}
+			}
+			if (shutdown_ || *offset_shutdown) break;
+			if (!have_offset) {
 				log_err("Timeout in time correction query for stream ", streamid);
 				continue;
 			}
@@ -809,9 +810,9 @@ void recording::impl::typed_transfer_loop(streamid_t streamid, double srate, con
 		}
 	} catch (std::exception &) {
 		stop_offsets(offset_shutdown);
-		timed_join_or_detach(offset_thread, teardown_grace);
+		join_worker(offset_thread, teardown_grace);
 		throw;
 	}
 	stop_offsets(offset_shutdown);
-	timed_join_or_detach(offset_thread, teardown_grace);
+	join_worker(offset_thread, teardown_grace);
 }

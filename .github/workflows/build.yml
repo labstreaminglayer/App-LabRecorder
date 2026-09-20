@@ -80,6 +80,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
           -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
           -DLSL_FETCH_IF_MISSING=ON
+          -DLABRECORDER_BUILD_TESTING=ON
           ${{ matrix.config.cmake_extra }}
 
       # -----------------------------------------------------------------------
@@ -87,6 +88,9 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test recording finalization
+        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} --output-on-failure
 
       # -----------------------------------------------------------------------
       # Install
