@@ -1,6 +1,8 @@
 #include "recording.h"
 #include "xdfwriter.h"
 
+#include <iostream>
+
 int main(int argc, char **argv) {
 	if (argc < 3 || (argc == 2 && std::string(argv[1]) == "-h")) {
 		std::cout << "Usage: " << argv[0] << " outputfile.xdf 'searchstr' ['searchstr2' ...]\n\n"

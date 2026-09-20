@@ -65,9 +65,12 @@ class Recorder:
     recorder subscribed, so pushing too early silently loses samples.
     """
 
-    def __init__(self, cli_path, xdf_path):
+    def __init__(self, cli_path, xdf_path, stream_order=NAMES):
+        # the recorder spawns one thread per stream in the order given here, and each thread
+        # registers with the headers phase as it starts. A case that needs one stream to be held
+        # at the headers-to-streaming gate by another therefore has to control this order.
         self._proc = subprocess.Popen(
-            [cli_path, xdf_path, f"name='{EEG_NAME}'", f"name='{MARKER_NAME}'"],
+            [cli_path, xdf_path] + [f"name='{name}'" for name in stream_order],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -99,6 +102,9 @@ class Recorder:
     def wait_until_collecting(self):
         self.wait_for([f"Started data collection for stream {name}." for name in NAMES])
 
+    def saw(self, needle):
+        return needle in "\n".join(self.lines)
+
     def stop(self):
         """Send the quit key and return how long the recorder took to exit."""
         started = time.perf_counter()
@@ -128,9 +134,9 @@ class Recorder:
 
 
 @contextlib.contextmanager
-def recorder(cli_path, xdf_path):
+def recorder(cli_path, xdf_path, stream_order=NAMES):
     """Run LabRecorderCLI over both test streams, making sure it is gone afterwards."""
-    rec = Recorder(cli_path, xdf_path)
+    rec = Recorder(cli_path, xdf_path, stream_order)
     try:
         yield rec
     finally:
@@ -215,6 +221,13 @@ def push_eeg_for(outlet, seconds):
     while time.time() < deadline:
         outlet.push_sample([value] * EEG_CHANNELS)
         value += 1.0
+        time.sleep(1.0 / EEG_RATE)
+
+
+def push_eeg_samples(outlet, count):
+    """Push exactly count EEG samples at the nominal rate."""
+    for value in range(count):
+        outlet.push_sample([float(value)] * EEG_CHANNELS)
         time.sleep(1.0 / EEG_RATE)
 
 
@@ -315,12 +328,63 @@ def case_no_buffered_samples_lost(cli_path, xdf_path, max_stop):
     del eeg, markers
 
 
+def case_gated_stream_is_drained(cli_path, xdf_path, max_stop):
+    """A stream held at the headers gate must still write what its inlet buffered.
+
+    A stream that is through its own header waits for every other stream's header before it may
+    write data. If a stop arrives while it waits there, it reaches its transfer loop with the
+    shutdown already set and never pulls a first sample -- but its inlet has been subscribed and
+    buffering the whole time, so that data has to be drained on the way out.
+
+    The marker stream is listed first so its thread registers with the headers phase before the
+    EEG thread can leave it, then it is taken away so its header never arrives and the EEG thread
+    stays at the gate.
+    """
+    sample_count = 40
+    eeg, markers = make_outlets()
+    time.sleep(SETTLE)
+    with recorder(cli_path, xdf_path, stream_order=(MARKER_NAME, EEG_NAME)) as rec:
+        # The recorder resolves for a second before it opens anything, so the marker outlet has
+        # to survive long enough to be resolved and be gone before its metadata is fetched.
+        # Waiting for the "Found" line instead would be too late: it is printed when the resolve
+        # returns, microseconds before the inlets are opened.
+        time.sleep(0.6)
+        del markers
+        rec.wait_for([f"Found {name}" for name in NAMES])
+        rec.wait_for([f"Received header for stream {EEG_NAME}."])
+        check(
+            not rec.saw(f"Started data collection for stream {EEG_NAME}."),
+            "precondition not met: the EEG stream was not held at the headers gate"
+            + (
+                " (the marker header arrived before its outlet was removed)"
+                if rec.saw(f"Received header for stream {MARKER_NAME}.")
+                else ""
+            ),
+        )
+
+        push_eeg_samples(eeg, sample_count)
+        time.sleep(SETTLE)
+        duration = rec.stop()
+
+    check_stop(duration, max_stop)
+    streams, _ = load_xdf_strict(xdf_path)
+    eeg_stream = stream_by_name(streams, EEG_NAME)
+    recorded = len(eeg_stream["time_series"])
+    check(
+        recorded == sample_count,
+        f"{sample_count} samples were buffered at the gate but {recorded} were recorded",
+    )
+    check_footer(eeg_stream)
+    del eeg
+
+
 CASES = [
     ("normal stop", case_normal_stop),
     ("stop before first sample", case_stop_before_first_sample),
     ("stop while subscribing", case_stop_while_subscribing),
     ("repeated shutdown", case_repeated_shutdown),
     ("no buffered samples lost", case_no_buffered_samples_lost),
+    ("gated stream is drained", case_gated_stream_is_drained),
 ]
 
 

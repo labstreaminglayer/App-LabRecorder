@@ -1,16 +1,126 @@
 #include "recording.h"
 //#include "conversions.h"
 
+#include "xdfwriter.h"
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <future>
+#include <iostream>
+#include <list>
+#include <memory>
+#include <mutex>
 #include <set>
 #include <sstream>
+#include <stdexcept>
+#include <thread>
 #ifdef XDFZ_SUPPORT
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
 #endif
 
+// timings in the recording process (e.g., rate of boundary chunks and for cases where a stream
+// hangs) approx. interval between boundary chunks
+const auto boundary_interval = std::chrono::seconds(10);
+// approx. interval between offset measurements
+const auto offset_interval = std::chrono::seconds(5);
+// approx. interval between resolves for outstanding streams on the watchlist, in seconds
+const double resolve_interval = 5;
+// timeout of a single resolve attempt, in seconds; the rest of resolve_interval is spent in an
+// interruptible wait so that a shutdown request need not wait out a resolve
+const double resolve_timeout = 1;
+// approx. interval between pulling chunks from outlets
+const auto chunk_interval = std::chrono::milliseconds(500);
+// maximum waiting time for moving past the headers phase while recording
+const auto max_headers_wait = std::chrono::seconds(10);
+// maximum waiting time for moving into the footers phase while recording
+const auto max_footers_wait = std::chrono::seconds(2);
+// maximum waiting time for subscribing to a stream, in seconds (if exceeded, stream subscription
+// will take place later)
+const double max_open_wait = 5;
+// maximum waiting time for a single time correction query, in seconds
+const double max_time_correction_wait = 2;
+// blocking network calls are issued in slices of this length (in seconds) so that a shutdown
+// request is noticed promptly instead of after the full timeout
+const double network_poll_interval = 0.2;
+// time granted to the stream threads to drain their inlets and write their footers before the
+// inlets are forcibly closed
+const auto teardown_grace = std::chrono::milliseconds(300);
+// maximum time that we wait to join a thread
+const auto max_join_wait = std::chrono::seconds(2);
+
+// steady_clock (not high_resolution_clock, which is an alias for the wall clock in some standard
+// libraries) so that waits are unaffected by clock adjustments
+using Clock = std::chrono::steady_clock;
+
+using streamid_t = uint32_t;
+
+/// thrown by the interruptible helpers when the recording is being torn down
+class shutdown_requested : public std::runtime_error {
+public:
+	explicit shutdown_requested(const std::string &what) : std::runtime_error(what) {}
+};
+
+/**
+ * A thread paired with a future that becomes ready once the thread body has returned.
+ *
+ * std::thread::join() blocks indefinitely, so polling it cannot enforce a deadline: a single call
+ * against a hung thread never comes back. The future can be waited on with a timeout, and only
+ * once it is ready do we join (which then returns promptly). A std::packaged_task future is used
+ * rather than std::async because the latter blocks in its future destructor.
+ */
+struct worker {
+	std::thread thread;
+	std::future<void> done;
+};
+// pointer to a worker thread
+using worker_p = std::unique_ptr<worker>;
+
+/// start a worker thread running fn
+template <class F> worker_p spawn_worker(F &&fn) {
+	auto task = std::make_shared<std::packaged_task<void()>>(std::forward<F>(fn));
+	auto w = std::make_unique<worker>();
+	w->done = task->get_future();
+	// the task is kept alive by the lambda, so the worker may be detached safely
+	w->thread = std::thread([task] { (*task)(); });
+	return w;
+}
+
+// pointer to a stream inlet
+using inlet_p = std::shared_ptr<lsl::stream_inlet>;
+// pointer to a per-stream flag asking that stream's offset thread to finish. Shared rather than
+// referenced so that an offset thread which had to be detached cannot outlive its flag.
+using offset_flag_p = std::shared_ptr<std::atomic<bool>>;
+// a list of clock offset estimates (time,value)
+using offset_list = std::list<std::pair<double, double>>;
+// a map from streamid to offset_list
+using offset_lists = std::map<streamid_t, offset_list>;
+
 namespace {
+
+/// Write one line, atomically with respect to the other recording threads.
+///
+/// Every stream has its own thread and they all report progress; an unsynchronised chain of <<
+/// lets two of them interleave in the middle of a line, which garbles the log and defeats anything
+/// that reads it.
+template <class... Args> void log_line(std::ostream &out, Args &&...args) {
+	std::ostringstream line;
+	(line << ... << std::forward<Args>(args));
+	line << '\n';
+	static std::mutex log_mut;
+	std::lock_guard<std::mutex> lock(log_mut);
+	out << line.str() << std::flush;
+}
+
+template <class... Args> void log_out(Args &&...args) {
+	log_line(std::cout, std::forward<Args>(args)...);
+}
+
+template <class... Args> void log_err(Args &&...args) {
+	log_line(std::cerr, std::forward<Args>(args)...);
+}
 
 // time spent waiting between two resolves of a watchlist query; the resolve itself already takes
 // resolve_timeout, so together they keep the resolve_interval cadence
@@ -52,7 +162,7 @@ inline void timed_join_or_detach(worker_p &w, std::chrono::milliseconds duration
 	if (!timed_join(w, duration)) {
 		w->thread.detach();
 		w.reset();
-		std::cerr << "Thread didn't join in time!" << std::endl;
+		log_err("Thread didn't join in time!");
 	}
 }
 
@@ -82,31 +192,181 @@ inline void timed_join_or_detach(
 	std::list<worker_p> &workers, std::chrono::milliseconds duration = max_join_wait) {
 	timed_join_some(workers, duration);
 	if (!workers.empty()) {
-		std::cout << workers.size() << " stream threads still running!" << std::endl;
+		log_out(workers.size(), " stream threads still running!");
 		for (auto &w : workers) w->thread.detach();
 		workers.clear();
 	}
 }
 
-recording::recording(const std::string &filename, const std::vector<lsl::stream_info> &streams,
-	const std::vector<std::string> &watchfor, std::map<std::string, int> syncOptions,
-	bool collect_offsets)
-	: file_(filename), offsets_enabled_(collect_offsets), unsorted_(false), streamid_(0),
-	  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
-	  sync_options_by_stream_(std::move(syncOptions)) {
+/**
+ * The recording state, and the thread bodies that operate on it.
+ *
+ * Every recording thread holds a shared_ptr to this, as does the recording object. A thread that
+ * could not be joined within the teardown deadline is left running rather than blocking the
+ * caller, which is typically the UI thread, so the state it writes into has to be able to outlive
+ * the recording object. Whoever drops the last reference destroys it, and that is what closes the
+ * file.
+ */
+struct recording::impl : std::enable_shared_from_this<recording::impl> {
+	impl(const std::string &filename, std::map<std::string, int> syncOptions, bool collect_offsets)
+		: file_(filename), offsets_enabled_(collect_offsets), unsorted_(false), streamid_(0),
+		  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
+		  sync_options_by_stream_(std::move(syncOptions)) {}
+
+	/// Deliberately joins nothing: the last recording thread to finish drops the final reference,
+	/// so this runs on that very thread and joining here would be a self-join. stop_and_join()
+	/// leaves the worker containers empty, so there is nothing left to clean up.
+	~impl() = default;
+
+	/// Spawn the recording threads. Separate from the constructor because the threads need a
+	/// shared_ptr to this, which shared_from_this() cannot hand out during construction.
+	void start(
+		const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor);
+
+	/// Ask the threads to finish and wait a bounded amount of time for them, leaving any that are
+	/// still stuck running. Called from the recording object, never from a recording thread.
+	void stop_and_join() noexcept;
+
+	void requestStop() noexcept;
+
+	// the file stream
+	XDFWriter file_; // the file output stream
+	// static information
+	bool offsets_enabled_; // whether to collect time offset information alongside with the stream
+						   // contents
+	bool unsorted_;		   // whether this file may contain unsorted chunks (e.g., of late streams)
+
+	// streamid allocation
+	std::atomic<streamid_t> streamid_; // the highest streamid allocated so far
+
+	// phase-of-recording state (headers, streaming data, or footers)
+	std::atomic<bool> shutdown_; // whether we are trying to shut down
+	std::condition_variable
+		shutdown_cv_;		  // signals shutdown so that every interruptible wait returns at once
+	std::mutex shutdown_mut_; // protects publication of shutdown_ and of the per-stream offset
+							  // shutdown flags, which the shutdown_cv_ predicates read under it
+	uint32_t headers_to_finish_;   // the number of streams that still need to write their header
+								   // (i.e., are not yet ready to write streaming content)
+	uint32_t streaming_to_finish_; // the number of streams that still need to finish the streaming
+								   // phase (i.e., are not yet ready for writing their footer)
+	std::condition_variable
+		ready_for_streaming_; // condition variable signaling that all streams have finished writing
+							  // their headers and are now ready to write streaming content
+	std::condition_variable
+		ready_for_footers_; // condition variable signaling that all streams have finished their
+							// recording jobs and are now ready to write a footer
+	std::mutex phase_mut_;  // a mutex to protect the phase state
+
+	// inlets with potentially pending network I/O, to be aborted if their thread does not stop in
+	// time
+	std::vector<inlet_p> active_inlets_;
+	std::mutex inlets_mut_; // a mutex to protect the active inlet list
+
+	// data structure to collect the time offsets for every stream
+	offset_lists
+		offset_lists_; // the clock offset lists for each stream (to be written into the footer)
+	std::mutex offset_mut_; // a mutex to protect the offset lists
+
+	// data for shutdown / final joining
+	std::list<worker_p> stream_threads_; // the spawned stream handling threads
+	worker_p boundary_thread_;			 // the spawned boundary-recording thread
+
+	// for enabling online sync options
+	std::map<std::string, int> sync_options_by_stream_;
+
+	// === recording thread functions ===
+
+	/// record from results of a query (spawn a recording thread for every result produced by the
+	/// query)
+	/// @param query The query string
+	void record_from_query_results(const std::string &query);
+
+	/// record from a given stream (identified by its streaminfo)
+	/// @param src the stream_info from which to record
+	/// @param phase_locked whether this is a stream that is locked to the phases (1. Headers, 2.
+	/// Streaming Content, 3. Footers)
+	///                     Late-added streams (e.g. forgotten devices) are not phase-locked.
+	void record_from_streaminfo(const lsl::stream_info &src, bool phase_locked);
+
+	/// record boundary markers every few seconds
+	void record_boundaries();
+
+	// record ClockOffset chunks from a given stream
+	void record_offsets(streamid_t streamid, inlet_p in, offset_flag_p offset_shutdown) noexcept;
+
+	// sample collection loop for a numeric stream
+	template <class T>
+	void typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
+		double &first_timestamp, double &last_timestamp, uint64_t &sample_count);
+
+	// === interruptible waiting & bounded network calls ===
+
+	/// wait until deadline, returning true if the wait was cut short by a shutdown request
+	/// @param extra an optional additional flag (e.g. a per-stream offset shutdown) that also ends
+	///              the wait
+	bool wait_until_shutdown(Clock::time_point deadline, const std::atomic<bool> *extra = nullptr);
+
+	/// wait for timeout, returning true if the wait was cut short by a shutdown request
+	bool wait_for_shutdown(Clock::duration timeout, const std::atomic<bool> *extra = nullptr) {
+		return wait_until_shutdown(Clock::now() + timeout, extra);
+	}
+
+	/// publish a per-stream offset shutdown flag and wake the corresponding offset thread
+	void stop_offsets(const offset_flag_p &offset_shutdown) noexcept;
+
+	/// subscribe to a stream, giving up after max_open_wait
+	/// @return whether the subscription completed (if not, it will take place later)
+	bool open_inlet(const inlet_p &in);
+
+	/// retrieve the full stream info, including the extended description
+	/// @throws shutdown_requested if the recording was stopped while retrieving the metadata
+	lsl::stream_info fetch_info(const inlet_p &in);
+
+	// === inlet bookkeeping ===
+
+	void register_inlet(const inlet_p &in);
+	void unregister_inlet(const inlet_p &in) noexcept;
+	/// close every registered inlet, aborting any blocking socket call in progress
+	void close_active_inlets() noexcept;
+
+	// === phase registration & condition checks ===
+	// writing is coordinated across threads in three phases to keep the file chunks sorted
+
+	void enter_headers_phase(bool phase_locked);
+	void leave_headers_phase(bool phase_locked);
+	void enter_streaming_phase(bool phase_locked);
+	void leave_streaming_phase(bool phase_locked);
+	void enter_footers_phase(bool phase_locked);
+	void leave_footers_phase(bool) { /* Nothing to do. Ignore warning. */
+	}
+
+	/// a condition that indicates that we are ready to write streaming content into the file
+	bool ready_for_streaming() const { return headers_to_finish_ <= 0; }
+	/// a condition that indicates that we are ready to write footers into the file
+	bool ready_for_footers() const { return streaming_to_finish_ <= 0 && headers_to_finish_ <= 0; }
+
+	/// allocate a fresh stream id
+	streamid_t fresh_streamid() { return ++streamid_; }
+};
+
+void recording::impl::start(
+	const std::vector<lsl::stream_info> &streams, const std::vector<std::string> &watchfor) {
+	// the threads hold a reference to us, so the state they write into outlives a teardown that
+	// had to leave one of them running
+	auto self = shared_from_this();
 	// create a recording thread for each stream
 	for (const auto &stream : streams)
 		stream_threads_.emplace_back(
-			spawn_worker([this, stream] { record_from_streaminfo(stream, true); }));
+			spawn_worker([self, stream] { self->record_from_streaminfo(stream, true); }));
 	// create a resolve-and-record thread for each item in the watchlist
 	for (const auto &query : watchfor)
 		stream_threads_.emplace_back(
-			spawn_worker([this, query] { record_from_query_results(query); }));
+			spawn_worker([self, query] { self->record_from_query_results(query); }));
 	// create a boundary chunk writer thread
-	boundary_thread_ = spawn_worker([this] { record_boundaries(); });
+	boundary_thread_ = spawn_worker([self] { self->record_boundaries(); });
 }
 
-recording::~recording() {
+void recording::impl::stop_and_join() noexcept {
 	try {
 		// set the shutdown flag (from now on no more new streams) and wake every waiting thread
 		requestStop();
@@ -120,13 +380,30 @@ recording::~recording() {
 			timed_join_or_detach(stream_threads_, max_join_wait);
 		}
 		timed_join_or_detach(boundary_thread_, max_join_wait);
-		std::cout << "Closing the file." << std::endl;
+		log_out("Closing the file.");
 	} catch (std::exception &e) {
-		std::cout << "Error while closing the recording: " << e.what() << std::endl;
+		log_out("Error while closing the recording: ", e.what());
 	}
 }
 
-void recording::requestStop() noexcept {
+recording::recording(const std::string &filename, const std::vector<lsl::stream_info> &streams,
+	const std::vector<std::string> &watchfor, std::map<std::string, int> syncOptions,
+	bool collect_offsets)
+	: impl_(std::make_shared<impl>(filename, std::move(syncOptions), collect_offsets)) {
+	try {
+		impl_->start(streams, watchfor);
+	} catch (...) {
+		// some threads may already be running, and our destructor will not run if we throw
+		impl_->stop_and_join();
+		throw;
+	}
+}
+
+recording::~recording() { impl_->stop_and_join(); }
+
+void recording::requestStop() noexcept { impl_->requestStop(); }
+
+void recording::impl::requestStop() noexcept {
 	{
 		// publish the flag under the mutex that the shutdown_cv_ predicates read it under: a
 		// waiter that has just evaluated its predicate as false would otherwise miss the
@@ -142,13 +419,13 @@ void recording::requestStop() noexcept {
 	ready_for_footers_.notify_all();
 }
 
-bool recording::wait_until_shutdown(Clock::time_point deadline, const std::atomic<bool> *extra) {
+bool recording::impl::wait_until_shutdown(Clock::time_point deadline, const std::atomic<bool> *extra) {
 	std::unique_lock<std::mutex> lock(shutdown_mut_);
 	return shutdown_cv_.wait_until(
 		lock, deadline, [this, extra] { return shutdown_.load() || (extra && extra->load()); });
 }
 
-void recording::stop_offsets(const offset_flag_p &offset_shutdown) noexcept {
+void recording::impl::stop_offsets(const offset_flag_p &offset_shutdown) noexcept {
 	{
 		std::lock_guard<std::mutex> lock(shutdown_mut_);
 		*offset_shutdown = true;
@@ -156,30 +433,30 @@ void recording::stop_offsets(const offset_flag_p &offset_shutdown) noexcept {
 	shutdown_cv_.notify_all();
 }
 
-void recording::register_inlet(const inlet_p &in) {
+void recording::impl::register_inlet(const inlet_p &in) {
 	std::lock_guard<std::mutex> lock(inlets_mut_);
 	active_inlets_.push_back(in);
 }
 
-void recording::unregister_inlet(const inlet_p &in) noexcept {
+void recording::impl::unregister_inlet(const inlet_p &in) noexcept {
 	if (!in) return;
 	std::lock_guard<std::mutex> lock(inlets_mut_);
 	active_inlets_.erase(
 		std::remove(active_inlets_.begin(), active_inlets_.end(), in), active_inlets_.end());
 }
 
-void recording::close_active_inlets() noexcept {
+void recording::impl::close_active_inlets() noexcept {
 	std::lock_guard<std::mutex> lock(inlets_mut_);
 	for (auto &in : active_inlets_) {
 		try {
 			in->close_stream();
 		} catch (std::exception &e) {
-			std::cerr << "Error while closing an inlet: " << e.what() << std::endl;
+			log_err("Error while closing an inlet: ", e.what());
 		}
 	}
 }
 
-bool recording::open_inlet(const inlet_p &in) {
+bool recording::impl::open_inlet(const inlet_p &in) {
 	// subscribe in short slices: a single open_stream(max_open_wait) would keep us from noticing a
 	// stop for up to max_open_wait seconds
 	const auto deadline = Clock::now() + seconds_to_duration(max_open_wait);
@@ -192,7 +469,7 @@ bool recording::open_inlet(const inlet_p &in) {
 	return false;
 }
 
-lsl::stream_info recording::fetch_info(const inlet_p &in) {
+lsl::stream_info recording::impl::fetch_info(const inlet_p &in) {
 	// the metadata receiver is separate from the data receiver, so close_stream() does not abort
 	// this call; poll in short slices instead, or an unreachable source blocks us indefinitely.
 	// A stop does not cut this off immediately: a source that is still reachable gets a short
@@ -208,12 +485,12 @@ lsl::stream_info recording::fetch_info(const inlet_p &in) {
 	throw shutdown_requested("stopped while retrieving the stream metadata");
 }
 
-void recording::record_from_query_results(const std::string &query) {
+void recording::impl::record_from_query_results(const std::string &query) {
 	try {
 		std::set<std::string> known_uids;		// set of previously seen stream uid's
 		std::set<std::string> known_source_ids; // set of previously seen source id's
 		std::list<worker_p> threads;			// our spawned threads
-		std::cout << "Watching for a stream with properties " << query << std::endl;
+		log_out("Watching for a stream with properties ", query);
 		while (!shutdown_) {
 			// periodically re-resolve the query. The resolve itself is kept short and the rest of
 			// the interval is spent in an interruptible wait, so a stop is noticed quickly.
@@ -226,11 +503,11 @@ void recording::record_from_query_results(const std::string &query) {
 					// and doesn't have a previously seen source id...
 					if (!result.source_id().empty() &&
 						(!known_source_ids.count(result.source_id()))) {
-						std::cout << "Found a new stream named " << result.name()
-								  << ", adding it to the recording." << std::endl;
+						log_out("Found a new stream named ", result.name(), ", adding it to the recording.");
 						// start a new recording thread
-						threads.emplace_back(spawn_worker(
-							[this, result] { record_from_streaminfo(result, false); }));
+						threads.emplace_back(spawn_worker([self = shared_from_this(), result] {
+							self->record_from_streaminfo(result, false);
+						}));
 						// ... and add it to the lists of known id's
 						known_uids.insert(result.uid());
 						if (!result.source_id().empty())
@@ -242,11 +519,11 @@ void recording::record_from_query_results(const std::string &query) {
 		// wait for all our threads to join
 		timed_join_or_detach(threads, max_join_wait);
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_from_query_results thread: " << e.what() << std::endl;
+		log_out("Error in the record_from_query_results thread: ", e.what());
 	}
 }
 
-void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_locked) {
+void recording::impl::record_from_streaminfo(const lsl::stream_info &src, bool phase_locked) {
 	inlet_p in;
 	try {
 		// initialised here because a stream that fails mid-recording still writes a footer
@@ -267,19 +544,17 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			if (it != sync_options_by_stream_.end()) in->set_postprocessing(it->second);
 
 			if (open_inlet(in))
-				std::cout << "Opened the stream " << src.name() << "." << std::endl;
+				log_out("Opened the stream ", src.name(), ".");
 			else if (!shutdown_)
-				std::cout
-					<< "Subscribing to the stream " << src.name()
-					<< " is taking relatively long; collection from this stream will be delayed."
-					<< std::endl;
+				log_out("Subscribing to the stream ", src.name(),
+					" is taking relatively long; collection from this stream will be delayed.");
 
 			// retrieve the stream header & get its XML version. The nominal rate is taken from
 			// the same info, saving a second round trip to the source.
 			const lsl::stream_info info = fetch_info(in);
 			nominal_srate = info.nominal_srate();
 			file_.write_stream_header(streamid, info.as_xml());
-			std::cout << "Received header for stream " << src.name() << "." << std::endl;
+			log_out("Received header for stream ", src.name(), ".");
 
 			leave_headers_phase(phase_locked);
 		} catch (std::exception &) {
@@ -296,7 +571,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			// "forgot to turn on" before the recording started; in that case the file would have to
 			// be post-processed to be in properly sorted (seekable) format
 			enter_streaming_phase(phase_locked);
-			std::cout << "Started data collection for stream " << src.name() << "." << std::endl;
+			log_out("Started data collection for stream ", src.name(), ".");
 
 			// now write the actual sample chunks...
 			switch (src.channel_format()) {
@@ -335,8 +610,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			leave_streaming_phase(phase_locked);
 			// the header is already on disk, so fall through to the footer instead of leaving the
 			// stream without one
-			std::cerr << "Error while recording from " << src.name() << ": " << e.what()
-					  << std::endl;
+			log_err("Error while recording from ", src.name(), ": ", e.what());
 		}
 
 		// --- footers phase
@@ -362,54 +636,49 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			}
 			file_.write_stream_footer(streamid, footer.str());
 
-			std::cout << "Wrote footer for stream " << src.name() << "." << std::endl;
+			log_out("Wrote footer for stream ", src.name(), ".");
 			leave_footers_phase(phase_locked);
 		} catch (std::exception &) {
 			leave_footers_phase(phase_locked);
 			throw;
 		}
 	} catch (shutdown_requested &e) {
-		std::cout << "Recording from " << src.name() << " ended: " << e.what() << std::endl;
+		log_out("Recording from ", src.name(), " ended: ", e.what());
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_from_streaminfo thread: " << e.what() << std::endl;
+		log_out("Error in the record_from_streaminfo thread: ", e.what());
 	}
 	unregister_inlet(in);
 }
 
-void recording::record_boundaries() {
+void recording::impl::record_boundaries() {
 	try {
 		while (!shutdown_) {
 			if (wait_for_shutdown(boundary_interval)) break;
 			file_.write_boundary_chunk();
 		}
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_boundaries thread: " << e.what() << std::endl;
+		log_out("Error in the record_boundaries thread: ", e.what());
 	}
 }
 
-void recording::record_offsets(
+void recording::impl::record_offsets(
 	streamid_t streamid, inlet_p in, offset_flag_p offset_shutdown) noexcept {
 	try {
 		while (!shutdown_ && !*offset_shutdown) {
 			// sleep for the interval
 			if (wait_for_shutdown(offset_interval, offset_shutdown.get())) break;
 
-			// query the time offset, again in short slices so that a stop is noticed promptly
-			double offset = 0, now = 0;
-			bool have_offset = false;
-			const auto deadline = Clock::now() + max_time_correction_wait;
-			while (!shutdown_ && !*offset_shutdown && Clock::now() < deadline) {
-				try {
-					offset = in->time_correction(network_poll_interval);
-					now = lsl::local_clock();
-					have_offset = true;
-					break;
-				} catch (lsl::timeout_error &) {}
-			}
-			if (!have_offset) {
-				if (shutdown_ || *offset_shutdown) break;
-				std::cerr << "Timeout in time correction query for stream " << streamid
-						  << std::endl;
+			// Query the time offset in one call with the whole budget, not in short slices: the
+			// query needs a round trip to complete, and restarting it every network_poll_interval
+			// means it never finishes, so no offset is ever recorded. Teardown does not depend on
+			// this returning quickly -- the transfer thread stops waiting for us after
+			// teardown_grace and leaves us running, and we keep the file alive while we do.
+			double offset, now;
+			try {
+				offset = in->time_correction(max_time_correction_wait);
+				now = lsl::local_clock();
+			} catch (lsl::timeout_error &) {
+				log_err("Timeout in time correction query for stream ", streamid);
 				continue;
 			}
 
@@ -419,19 +688,19 @@ void recording::record_offsets(
 			offset_lists_[streamid].emplace_back(now - offset, offset);
 		}
 	} catch (std::exception &e) {
-		std::cout << "Error in the record_offsets thread: " << e.what() << std::endl;
+		log_out("Error in the record_offsets thread: ", e.what());
 	}
-	std::cout << "Offsets thread is finished" << std::endl;
+	log_out("Offsets thread is finished");
 }
 
-void recording::enter_headers_phase(bool phase_locked) {
+void recording::impl::enter_headers_phase(bool phase_locked) {
 	if (phase_locked) {
 		std::lock_guard<std::mutex> lock(phase_mut_);
 		headers_to_finish_++;
 	}
 }
 
-void recording::leave_headers_phase(bool phase_locked) {
+void recording::impl::leave_headers_phase(bool phase_locked) {
 	if (phase_locked) {
 		std::unique_lock<std::mutex> lock(phase_mut_);
 		headers_to_finish_--;
@@ -440,7 +709,7 @@ void recording::leave_headers_phase(bool phase_locked) {
 	}
 }
 
-void recording::enter_streaming_phase(bool phase_locked) {
+void recording::impl::enter_streaming_phase(bool phase_locked) {
 	if (phase_locked) {
 		std::unique_lock<std::mutex> lock(phase_mut_);
 		// on shutdown the gate is dropped: the transfer loop exits immediately anyway, and waiting
@@ -452,7 +721,7 @@ void recording::enter_streaming_phase(bool phase_locked) {
 	}
 }
 
-void recording::leave_streaming_phase(bool phase_locked) {
+void recording::impl::leave_streaming_phase(bool phase_locked) {
 	if (phase_locked) {
 		std::unique_lock<std::mutex> lock(phase_mut_);
 		streaming_to_finish_--;
@@ -461,7 +730,7 @@ void recording::leave_streaming_phase(bool phase_locked) {
 	}
 }
 
-void recording::enter_footers_phase(bool phase_locked) {
+void recording::impl::enter_footers_phase(bool phase_locked) {
 	if (phase_locked) {
 		std::unique_lock<std::mutex> lock(phase_mut_);
 		// see enter_streaming_phase: a footer written slightly out of order beats no footer at all
@@ -471,13 +740,14 @@ void recording::enter_footers_phase(bool phase_locked) {
 }
 
 template <class T>
-void recording::typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
+void recording::impl::typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
 	double &first_timestamp, double &last_timestamp, uint64_t &sample_count) {
 	// optionally start an offset collection thread for this stream
 	auto offset_shutdown = std::make_shared<std::atomic<bool>>(false);
+	auto self = shared_from_this();
 	worker_p offset_thread(offsets_enabled_
-			? spawn_worker([this, streamid, in, offset_shutdown] {
-				  record_offsets(streamid, in, offset_shutdown);
+			? spawn_worker([self, streamid, in, offset_shutdown] {
+				  self->record_offsets(streamid, in, offset_shutdown);
 			  })
 			: nullptr);
 	try {
@@ -491,6 +761,12 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 		auto write_chunk = [&] {
 			if (timestamps.empty()) return;
 			for (double &ts : timestamps) {
+				if (first_timestamp == 0.0) {
+					// the first sample anchors the stream and is written verbatim: at a nominal
+					// interval of zero the deduction below would otherwise zero out its timestamp
+					first_timestamp = last_timestamp = ts;
+					continue;
+				}
 				// if the time stamp can be deduced from the previous one...
 				if (last_timestamp + sample_interval == ts) {
 					last_timestamp = ts + sample_interval;
@@ -502,16 +778,15 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			sample_count += timestamps.size();
 		};
 
-		// Pull the first sample
+		// Wait for the first sample, unless the stop got here first. A stream held at the headers
+		// gate reaches this point with the shutdown already set, having pulled nothing, while its
+		// inlet has been subscribed and buffering the whole time -- the drain below picks that up.
 		first_timestamp = 0.0;
-		while (!shutdown_ && first_timestamp == 0.0)
-			first_timestamp = last_timestamp = in->pull_sample(chunk, network_poll_interval);
-		if (first_timestamp != 0.0) {
-			// written directly: the very first sample anchors the stream and must keep its
-			// timestamp even when the nominal interval is zero
-			timestamps.assign(1, first_timestamp);
-			file_.write_data_chunk(streamid, timestamps, chunk, (uint32_t)in->get_channel_count());
-			sample_count += timestamps.size();
+		while (!shutdown_ && first_timestamp == 0.0) {
+			const double ts = in->pull_sample(chunk, network_poll_interval);
+			if (ts == 0.0) continue;
+			timestamps.assign(1, ts);
+			write_chunk();
 		}
 
 		auto next_pull = Clock::now() + chunk_interval;
@@ -523,23 +798,20 @@ void recording::typed_transfer_loop(streamid_t streamid, double srate, const inl
 			next_pull += chunk_interval;
 		}
 
-		if (first_timestamp != 0.0) {
-			// one final non-blocking pull, so that samples already buffered in the inlet when the
-			// stop arrived end up in the file rather than being dropped
-			try {
-				in->pull_chunk_multiplexed(chunk, &timestamps, 0.0);
-				write_chunk();
-			} catch (std::exception &e) {
-				// the inlet was closed under us during teardown; the footer matters more
-				std::cerr << "Could not drain stream " << streamid << " on stop: " << e.what()
-						  << std::endl;
-			}
+		// one final non-blocking pull, so that samples already buffered in the inlet when the stop
+		// arrived end up in the file rather than being dropped
+		try {
+			in->pull_chunk_multiplexed(chunk, &timestamps, 0.0);
+			write_chunk();
+		} catch (std::exception &e) {
+			// the inlet was closed under us during teardown; the footer matters more
+			log_err("Could not drain stream ", streamid, " on stop: ", e.what());
 		}
 	} catch (std::exception &) {
 		stop_offsets(offset_shutdown);
-		timed_join_or_detach(offset_thread);
+		timed_join_or_detach(offset_thread, teardown_grace);
 		throw;
 	}
 	stop_offsets(offset_shutdown);
-	timed_join_or_detach(offset_thread);
+	timed_join_or_detach(offset_thread, teardown_grace);
 }
