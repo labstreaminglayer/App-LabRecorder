@@ -17,7 +17,7 @@ def run_case(binary, directory, stalled):
     else:
         env.pop("LSL_TEST_STALL", None)
     proc = subprocess.Popen(
-        [binary, "--stop-timeout", "0.5", str(path), "test"],
+        [binary, "--stop-timeout", "0.5" if stalled else "5", str(path), "test"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, env=env,
     )
@@ -41,11 +41,11 @@ def run_case(binary, directory, stalled):
         start = time.monotonic()
         proc.stdin.write("\n")
         proc.stdin.flush()
-        proc.wait(timeout=2)
+        proc.wait(timeout=5)
         reader.join(timeout=1)
         elapsed = time.monotonic() - start
         assert proc.returncode == (3 if stalled else 0), "".join(output)
-        assert elapsed < 1.5, f"CLI did not honor its timeout: {elapsed}"
+        assert elapsed < (1.5 if stalled else 4), f"CLI did not honor its timeout: {elapsed}"
         data = path.read_bytes()
         assert data.startswith(b"XDF:"), "no recoverable XDF header was flushed"
         if stalled:

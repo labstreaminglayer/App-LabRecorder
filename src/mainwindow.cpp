@@ -104,13 +104,16 @@ void MainWindow::statusUpdate() {
 	if (finishing) {
 		if (currentRecording->isFinished()) {
 			const auto error = currentRecording->finalizationError();
+			const auto fallback = currentRecording->finalizationProgress().fallback_streams;
 			currentRecording.reset();
 			finishing = false;
 			ui->startButton->setEnabled(true);
 			ui->stopButton->setEnabled(false);
 			ui->stopButton->setText("Stop");
 			setRemoteState(error.empty() ? "stopped" : "error");
-			statusBar()->showMessage(error.empty() ? QStringLiteral("Stopped — file finalized")
+			statusBar()->showMessage(error.empty() ? (fallback
+				? QStringLiteral("Stopped — file finalized; %1 stream(s) ended without confirming the cutoff").arg(fallback)
+				: QStringLiteral("Stopped — file finalized"))
 				: QStringLiteral("Finalization failed — recording may be incomplete"));
 			if (!error.empty()) {
 				closeWhenFinished = false;
@@ -118,11 +121,21 @@ void MainWindow::statusUpdate() {
 					QString::fromStdString(error) + "\n" + recordingPath);
 			}
 			if (closeWhenFinished) close();
-		} else if (finalizationTimer.elapsed() >= 5000) {
-			setRemoteState("stalled");
-			statusBar()->showMessage(QStringLiteral("Still finishing — file is not finalized. Wait, or choose Force quit."));
-			ui->stopButton->setText(QStringLiteral("Force quit…"));
-			ui->stopButton->setEnabled(true);
+		} else {
+			const auto progress = currentRecording->finalizationProgress();
+			const bool stalled = progress.idle >= std::chrono::seconds(5);
+			setRemoteState(stalled ? "stalled" : progress.catching_up ? "catching_up"
+				: progress.collecting ? "waiting" : "closing");
+			statusBar()->showMessage(stalled
+				? QStringLiteral("Waiting without progress — file is not finalized. Wait, or choose Force quit.")
+				: progress.catching_up
+					? QStringLiteral("Catching up to stop time — %1 stream(s) still collecting").arg(progress.collecting)
+					: progress.collecting
+						? QStringLiteral("Waiting for pre-stop data — %1 stream(s) still open").arg(progress.collecting)
+						: QStringLiteral("Closing recording file…"));
+			ui->stopButton->setText(stalled ? QStringLiteral("Force quit…")
+				: progress.collecting ? QStringLiteral("Finish now…") : QStringLiteral("Stop"));
+			ui->stopButton->setEnabled(stalled || progress.collecting);
 		}
 		return;
 	}
@@ -136,13 +149,21 @@ void MainWindow::statusUpdate() {
 void MainWindow::confirmForceQuit() {
 	QMessageBox dialog(QMessageBox::Warning, "Recording is still finishing",
 		"The file has not been finalized. Force quitting may lose buffered samples or leave "
-		"an incomplete recording.\n" + recordingPath, QMessageBox::NoButton, this);
+		"an incomplete recording. Finish now stops collecting additional data and then "
+		"finalizes the file with the samples already saved.\n" + recordingPath, QMessageBox::NoButton, this);
 	auto *wait = dialog.addButton("Keep waiting", QMessageBox::RejectRole);
-	auto *quit = dialog.addButton("Force quit", QMessageBox::DestructiveRole);
+	auto *finish = currentRecording && currentRecording->finalizationProgress().collecting
+		? dialog.addButton("Finish now (may miss data)", QMessageBox::ActionRole) : nullptr;
+	auto *quit = currentRecording && currentRecording->finalizationProgress().idle >= std::chrono::seconds(5)
+		? dialog.addButton("Force quit", QMessageBox::DestructiveRole) : nullptr;
 	dialog.setDefaultButton(wait);
 	dialog.setEscapeButton(wait);
 	dialog.exec();
-	if (dialog.clickedButton() == quit && currentRecording && !currentRecording->isFinished())
+	if (finish && dialog.clickedButton() == finish && currentRecording) {
+		currentRecording->finishCollecting();
+		statusUpdate();
+	}
+	if (quit && dialog.clickedButton() == quit && currentRecording && !currentRecording->isFinished())
 		std::_Exit(3);
 }
 
@@ -151,7 +172,8 @@ void MainWindow::closeEvent(QCloseEvent *ev) {
 	ev->ignore();
 	closeWhenFinished = true;
 	if (!finishing) stopRecording();
-	else if (finalizationTimer.elapsed() >= 5000) confirmForceQuit();
+	else if (currentRecording->finalizationProgress().idle >= std::chrono::seconds(5) ||
+		currentRecording->finalizationProgress().collecting) confirmForceQuit();
 }
 
 void MainWindow::blockSelected(const QString &block) {
@@ -532,11 +554,11 @@ void MainWindow::startRecording() {
 void MainWindow::stopRecording() {
 	if (!currentRecording) return;
 	if (finishing) {
-		if (finalizationTimer.elapsed() >= 5000) confirmForceQuit();
+		if (currentRecording->finalizationProgress().idle >= std::chrono::seconds(5) ||
+		currentRecording->finalizationProgress().collecting) confirmForceQuit();
 		return;
 	}
 	finishing = true;
-	finalizationTimer.start();
 	currentRecording->requestStop();
 	ui->startButton->setEnabled(false);
 	ui->stopButton->setEnabled(false);
@@ -692,7 +714,7 @@ void MainWindow::enableRcs(bool bEnable) {
 		uint16_t port = ui->rcsport->value();
 		rcs = std::make_unique<RemoteControlSocket>(port);
 		setRemoteState(!currentRecording ? "stopped" : !finishing ? "recording"
-			: finalizationTimer.elapsed() >= 5000 ? "stalled" : "finishing");
+			: currentRecording->finalizationProgress().idle >= std::chrono::seconds(5) ? "stalled" : "finishing");
 		// TODO: Add some method to RemoteControlSocket to report if its server is listening (i.e. was successful).
 		connect(rcs.get(), &RemoteControlSocket::refresh_streams, this, &MainWindow::refreshStreams);
 		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::rcsStartRecording);

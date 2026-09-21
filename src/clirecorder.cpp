@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
 			<< "Usage: " << argv[0]
 			<< " [--stop-timeout SECONDS] outputfile.xdf 'searchstr' ['searchstr2' ...]\n"
 			<< "Search strings use lsl_resolve_bypred syntax.\n"
-			<< "Stop timeout defaults to 5 seconds; an unfinished file exits with status 3.\n";
+			<< "Stop inactivity timeout defaults to 5 seconds; an unfinished file exits with status 3.\n";
 		return 1;
 	}
 
@@ -60,7 +60,8 @@ int main(int argc, char **argv) {
 		r.requestStop();
 		const auto timeout = std::chrono::duration_cast<std::chrono::milliseconds>(
 			std::chrono::duration<double>(stop_timeout));
-		if (!r.waitForFinished(timeout)) {
+		while (!r.waitForFinished(std::chrono::milliseconds(50))) {
+			if (r.finalizationProgress().idle < timeout) continue;
 			// Even reporting the timeout must not hang if a stalled worker holds an iostream
 			// lock or stderr is backed by a blocked pipe. Allow a brief best-effort diagnostic.
 			std::thread([] {

@@ -6,9 +6,11 @@
 
 std::atomic<bool> release_finalization{false};
 std::atomic<int> recording_starts{0};
+std::atomic<bool> simulate_catchup{false};
 
 struct recording::completion {
 	std::atomic<bool> stopping{false};
+	std::chrono::steady_clock::time_point stopped;
 	std::promise<std::string> result;
 };
 
@@ -21,6 +23,7 @@ recording::recording(const std::string &, const std::vector<lsl::stream_info> &,
 recording::~recording() { requestStop(); }
 void recording::requestStop() noexcept {
 	if (completion_->stopping.exchange(true)) return;
+	completion_->stopped = std::chrono::steady_clock::now();
 	std::thread([done = completion_] {
 		while (!release_finalization)
 			std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -31,3 +34,16 @@ bool recording::waitForFinished(std::chrono::milliseconds timeout) const {
 	return result_.wait_for(timeout) == std::future_status::ready;
 }
 std::string recording::finalizationError() const { return result_.get(); }
+
+recording::FinalizationProgress recording::finalizationProgress() const {
+	FinalizationProgress progress;
+	if (simulate_catchup) {
+		completion_->stopped = std::chrono::steady_clock::now();
+		progress.collecting = progress.catching_up = 1;
+		return progress;
+	}
+	progress.idle = std::chrono::duration_cast<std::chrono::milliseconds>(
+		std::chrono::steady_clock::now() - completion_->stopped);
+	return progress;
+}
+void recording::finishCollecting() noexcept { release_finalization = true; }

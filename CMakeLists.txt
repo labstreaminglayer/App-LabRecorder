@@ -229,7 +229,7 @@ if(LABRECORDER_BUILD_TESTING)
     # liblsl into this target: its timeout behavior is supplied by the test double.
     target_include_directories(test_recording_finalization PRIVATE tests/fake_lsl src)
     target_link_libraries(test_recording_finalization PRIVATE xdfwriter Threads::Threads)
-    foreach(scenario IN ITEMS delayed unavailable stalled failed abandoned)
+    foreach(scenario IN ITEMS delayed unavailable stalled failed abandoned catchup cutoff clocksync unknown_clock finish_now independent_progress nonadvancing)
         add_test(NAME recording_finalization_${scenario}
             COMMAND test_recording_finalization ${scenario})
         set_tests_properties(recording_finalization_${scenario} PROPERTIES TIMEOUT 20)
@@ -253,10 +253,11 @@ if(LABRECORDER_BUILD_TESTING)
                     $<TARGET_FILE:LSL::lsl> $<TARGET_FILE_DIR:test_gui_finalization>)
         endif()
         add_test(NAME recording_gui_finalization COMMAND test_gui_finalization)
+        add_test(NAME recording_gui_finish_now COMMAND test_gui_finalization --finish-now)
         add_test(NAME recording_gui_force_exit
             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gui_force_exit.py
                 $<TARGET_FILE:test_gui_finalization>)
-        set_tests_properties(recording_gui_finalization recording_gui_force_exit PROPERTIES TIMEOUT 25
+        set_tests_properties(recording_gui_finalization recording_gui_force_exit recording_gui_finish_now PROPERTIES TIMEOUT 25
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endif()
 endif()

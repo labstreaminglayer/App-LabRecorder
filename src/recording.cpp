@@ -6,9 +6,11 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cmath>
 #include <future>
 #include <iostream>
 #include <list>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -196,16 +198,40 @@ inline void join_workers(
 	}
 }
 
+// Shared control and progress only. No file or inlet operation runs under this mutex.
+struct recording::completion {
+	std::mutex mutex;
+	std::condition_variable changed;
+	bool startup_finished = false;
+	bool stop_requested = false;
+	std::atomic<double> cutoff{0};
+	std::atomic<bool> finish_collecting{false};
+	std::atomic<size_t> fallback_streams{0};
+	Clock::time_point stopped{}, changed_at{};
+	struct stream_progress {
+		bool collecting = true, done = false, advancing = false;
+		Clock::time_point advanced = Clock::now();
+	};
+	std::map<streamid_t, stream_progress> streams;
+	std::promise<std::string> result;
+
+	void note(streamid_t id, bool collecting, bool done = false, bool advancing = false) {
+		std::lock_guard<std::mutex> lock(mutex);
+		streams[id] = {collecting, done, advancing, Clock::now()};
+		changed_at = Clock::now();
+	}
+};
+
 /**
- * The recording state, and the thread bodies that operate on it.
- *
- * Workers and the background finalizer retain this state. The UI handle owns only a
- * completion signal. The finalizer joins all workers, closes the file, and releases the state
- * before publishing completion; callers can poll or wait with their own finite deadline.
+ * Workers and the background finalizer retain this state. The UI handle owns only
+ * control/progress and completion. The finalizer joins all workers and closes the
+ * file before publishing completion; callers can enforce their own inactivity limit.
  */
 struct recording::impl : std::enable_shared_from_this<recording::impl> {
-	impl(const std::string &filename, std::map<std::string, int> syncOptions, bool collect_offsets)
-		: file_(filename), offsets_enabled_(collect_offsets), unsorted_(false), streamid_(0),
+	impl(const std::string &filename, std::map<std::string, int> syncOptions,
+		bool collect_offsets, std::shared_ptr<completion> control)
+		: control_(std::move(control)), file_(filename), offsets_enabled_(collect_offsets),
+		  unsorted_(false), streamid_(0),
 		  shutdown_(false), headers_to_finish_(0), streaming_to_finish_(0),
 		  sync_options_by_stream_(std::move(syncOptions)) {}
 
@@ -223,6 +249,7 @@ struct recording::impl : std::enable_shared_from_this<recording::impl> {
 
 	void requestStop() noexcept;
 
+	std::shared_ptr<completion> control_;
 	// the file stream
 	XDFWriter file_; // the file output stream
 	// static information
@@ -287,7 +314,8 @@ struct recording::impl : std::enable_shared_from_this<recording::impl> {
 	// sample collection loop for a numeric stream
 	template <class T>
 	void typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
-		double &first_timestamp, double &last_timestamp, uint64_t &sample_count);
+		double &first_timestamp, double &last_timestamp, uint64_t &sample_count, bool clocksync,
+		std::string &end_reason);
 
 	// === interruptible waiting & bounded network calls ===
 
@@ -363,21 +391,13 @@ std::string recording::impl::stop_and_join() {
 	                         : "";
 }
 
-struct recording::completion {
-	std::mutex mutex;
-	std::condition_variable changed;
-	bool startup_finished = false;
-	bool stop_requested = false;
-	std::promise<std::string> result;
-};
-
 recording::recording(const std::string &filename, const std::vector<lsl::stream_info> &streams,
 	const std::vector<std::string> &watchfor, std::map<std::string, int> syncOptions,
 	bool collect_offsets)
 	: completion_(std::make_shared<completion>()), result_(completion_->result.get_future().share()) {
-	auto state = std::make_shared<impl>(filename, std::move(syncOptions), collect_offsets);
+	auto state = std::make_shared<impl>(filename, std::move(syncOptions), collect_offsets, completion_);
 	// Start the finalizer before workers so partial startup failures can also be cleaned
-	// up off the caller's thread. Its control mutex is never used by recording workers.
+	// up off the caller's thread. The control mutex protects only short state updates.
 	std::thread([state, done = completion_]() mutable {
 		{
 			std::unique_lock<std::mutex> lock(done->mutex);
@@ -401,6 +421,8 @@ recording::recording(const std::string &filename, const std::vector<lsl::stream_
 		{
 			std::lock_guard<std::mutex> lock(completion_->mutex);
 			completion_->startup_finished = true;
+			completion_->cutoff = lsl::local_clock();
+			completion_->stopped = completion_->changed_at = Clock::now();
 			completion_->stop_requested = true;
 		}
 		completion_->changed.notify_one();
@@ -418,9 +440,39 @@ recording::~recording() { requestStop(); }
 void recording::requestStop() noexcept {
 	{
 		std::lock_guard<std::mutex> lock(completion_->mutex);
-		completion_->stop_requested = true;
+		if (!completion_->stop_requested) {
+			completion_->cutoff = lsl::local_clock();
+			completion_->stopped = completion_->changed_at = Clock::now();
+			completion_->stop_requested = true;
+		}
 	}
 	completion_->changed.notify_one();
+}
+
+void recording::finishCollecting() noexcept {
+	requestStop();
+	completion_->finish_collecting = true;
+}
+
+recording::FinalizationProgress recording::finalizationProgress() const {
+	FinalizationProgress result;
+	result.fallback_streams = completion_->fallback_streams;
+	std::lock_guard<std::mutex> lock(completion_->mutex);
+	if (!completion_->stop_requested) return result;
+	const auto now = Clock::now();
+	auto oldest = std::max(completion_->stopped, completion_->changed_at);
+	for (const auto &entry : completion_->streams) {
+		const auto &stream = entry.second;
+		if (stream.done) continue;
+		const auto advanced = std::max(completion_->stopped, stream.advanced);
+		oldest = std::min(oldest, advanced);
+		if (stream.collecting) {
+			++result.collecting;
+			if (stream.advancing && now - advanced < std::chrono::milliseconds(500)) ++result.catching_up;
+		}
+	}
+	result.idle = std::chrono::duration_cast<std::chrono::milliseconds>(now - oldest);
+	return result;
 }
 
 bool recording::waitForFinished(std::chrono::milliseconds timeout) const {
@@ -531,14 +583,21 @@ void recording::impl::record_from_query_results(const std::string &query) {
 }
 
 void recording::impl::record_from_streaminfo(const lsl::stream_info &src, bool phase_locked) {
+	// obtain a fresh streamid
+	streamid_t streamid = fresh_streamid();
+	control_->note(streamid, true);
+	// Publish completion even on an exception; no writer or inlet lock is held here.
+	auto progress_guard = std::shared_ptr<void>(nullptr, [this, streamid](void *) {
+		control_->note(streamid, false, true);
+	});
 	inlet_p in;
 	try {
 		// initialised here because a stream that fails mid-recording still writes a footer
 		double first_timestamp = 0.0, last_timestamp = 0.0;
 		uint64_t sample_count = 0;
 		double nominal_srate = 0;
-		// obtain a fresh streamid
-		streamid_t streamid = fresh_streamid();
+		bool clocksync = false;
+		std::string end_reason = "transfer_error";
 
 		// --- headers phase
 		try {
@@ -547,7 +606,10 @@ void recording::impl::record_from_streaminfo(const lsl::stream_info &src, bool p
 			// open an inlet to read from (and subscribe to data immediately)
 			in = std::make_shared<lsl::stream_inlet>(src);
 			auto it = sync_options_by_stream_.find(src.name() + " (" + src.hostname() + ")");
-			if (it != sync_options_by_stream_.end()) in->set_postprocessing(it->second);
+			if (it != sync_options_by_stream_.end()) {
+				in->set_postprocessing(it->second);
+				clocksync = (it->second & lsl::post_clocksync) != 0;
+			}
 
 			if (open_inlet(in))
 				log_out("Opened the stream ", src.name(), ".");
@@ -583,27 +645,33 @@ void recording::impl::record_from_streaminfo(const lsl::stream_info &src, bool p
 			switch (src.channel_format()) {
 			case lsl::cf_int8:
 				typed_transfer_loop<char>(
-					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count);
+					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count,
+					clocksync, end_reason);
 				break;
 			case lsl::cf_int16:
 				typed_transfer_loop<int16_t>(
-					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count);
+					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count,
+					clocksync, end_reason);
 				break;
 			case lsl::cf_int32:
 				typed_transfer_loop<int32_t>(
-					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count);
+					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count,
+					clocksync, end_reason);
 				break;
 			case lsl::cf_float32:
 				typed_transfer_loop<float>(
-					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count);
+					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count,
+					clocksync, end_reason);
 				break;
 			case lsl::cf_double64:
 				typed_transfer_loop<double>(
-					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count);
+					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count,
+					clocksync, end_reason);
 				break;
 			case lsl::cf_string:
 				typed_transfer_loop<std::string>(
-					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count);
+					streamid, nominal_srate, in, first_timestamp, last_timestamp, sample_count,
+					clocksync, end_reason);
 				break;
 			default:
 				// unsupported channel format
@@ -631,6 +699,10 @@ void recording::impl::record_from_streaminfo(const lsl::stream_info &src, bool p
 			footer << "<?xml version=\"1.0\"?><info><first_timestamp>" << first_timestamp
 				   << "</first_timestamp><last_timestamp>" << last_timestamp
 				   << "</last_timestamp><sample_count>" << sample_count << "</sample_count>";
+			footer << "<collection_end><reason>" << end_reason
+					<< "</reason><stop_time>" << control_->cutoff.load()
+					<< "</stop_time><clock_domain>recorder</clock_domain>"
+					<< "<inactivity_grace_seconds>2</inactivity_grace_seconds></collection_end>";
 			footer << "<clock_offsets>";
 			{
 				// including the clock_offset list
@@ -761,7 +833,8 @@ void recording::impl::enter_footers_phase(bool phase_locked) {
 
 template <class T>
 void recording::impl::typed_transfer_loop(streamid_t streamid, double srate, const inlet_p &in,
-	double &first_timestamp, double &last_timestamp, uint64_t &sample_count) {
+	double &first_timestamp, double &last_timestamp, uint64_t &sample_count, bool clocksync,
+		std::string &end_reason) {
 	// optionally start an offset collection thread for this stream
 	auto offset_shutdown = std::make_shared<std::atomic<bool>>(false);
 	auto self = shared_from_this();
@@ -789,7 +862,7 @@ void recording::impl::typed_transfer_loop(streamid_t streamid, double srate, con
 				}
 				// if the time stamp can be deduced from the previous one...
 				if (last_timestamp + sample_interval == ts) {
-					last_timestamp = ts + sample_interval;
+					last_timestamp = ts;
 					ts = 0;
 				} else
 					last_timestamp = ts;
@@ -798,36 +871,83 @@ void recording::impl::typed_transfer_loop(streamid_t streamid, double srate, con
 			sample_count += timestamps.size();
 		};
 
-		// Wait for the first sample, unless the stop got here first. A stream held at the headers
-		// gate reaches this point with the shutdown already set, having pulled nothing, while its
-		// inlet has been subscribed and buffering the whole time -- the drain below picks that up.
-		first_timestamp = 0.0;
-		while (!shutdown_ && first_timestamp == 0.0) {
-			const double ts = in->pull_sample(chunk, network_poll_interval);
-			if (ts == 0.0) continue;
-			timestamps.assign(1, ts);
+		// Bounded batches prevent a continuously producing outlet from trapping a pull
+		// inside liblsl's vector pull_chunk helper and delaying stop/cutoff checks.
+		std::vector<T> sample;
+		bool stopping = false, have_correction = clocksync, saw_cutoff = false;
+		bool unmapped_samples = false, invalid_timestamps = false;
+		double correction = 0, high_water = -std::numeric_limits<double>::infinity();
+		auto last_advance = Clock::now();
+		const auto inactivity_grace = std::chrono::seconds(2);
+		auto observe_stop = [&] {
+			if (control_->cutoff.load() && !stopping) {
+				stopping = true;
+				last_advance = Clock::now();
+			}
+			if (stopping && !have_correction) {
+				try {
+					correction = in->time_correction(0.0);
+					have_correction = std::isfinite(correction);
+				} catch (const std::exception &) {
+					// Losing clock service must not discard samples still available from
+					// the data connection. Preserve them during the fallback grace.
+				}
+			}
+		};
+		for (;;) {
+			// Mapping is needed even if offset chunks are disabled. A zero-timeout
+			// query starts/reuses liblsl's measurement without waiting.
+			observe_stop();
+			if (stopping && control_->finish_collecting) {
+				end_reason = "user_requested";
+				break;
+			}
+			chunk.clear();
+			timestamps.clear();
+			bool advanced = false;
+			for (size_t n = 0; n < 1024; ++n) {
+				const double ts = in->pull_sample(sample, n == 0 ? network_poll_interval : 0.0);
+				// Stop can arrive while pull_sample is waiting. Compare this sample
+				// too, without losing data pulled just as the request arrived.
+				if (!stopping && control_->cutoff.load()) observe_stop();
+				if (!ts) break;
+				const double stop = control_->cutoff.load();
+				const double local_ts = ts + correction;
+				if (stopping && !have_correction) unmapped_samples = true;
+				if (stopping && !std::isfinite(local_ts)) invalid_timestamps = true;
+				if (stopping && have_correction && std::isfinite(local_ts)) {
+					if (local_ts > stop) {
+						saw_cutoff = true;
+						continue;
+					}
+					if (local_ts > high_water) {
+						high_water = local_ts;
+						advanced = true;
+					}
+				}
+				// Preserve inlet timestamps; correction is for comparison only. If the
+				// clock mapping is unavailable, preserve arrivals during a finite grace.
+				timestamps.push_back(ts);
+				chunk.insert(chunk.end(), sample.begin(), sample.end());
+			}
 			write_chunk();
+			if (!stopping || advanced) {
+				last_advance = Clock::now();
+				control_->note(streamid, true, false, advanced);
+			}
+			if (stopping && Clock::now() - last_advance >= inactivity_grace) {
+				// Even a post-cutoff sample is not proof of completeness for reordered
+				// or sparse streams. Leave the inlet open for the same reorder grace.
+				end_reason = invalid_timestamps ? "unreliable_timestamps"
+					: (!have_correction || unmapped_samples) ? "clock_unavailable"
+					: saw_cutoff ? "cutoff_observed" : "inactivity_timeout";
+				break;
+			}
+			if (!stopping) wait_for_shutdown(chunk_interval);
 		}
-
-		auto next_pull = Clock::now() + chunk_interval;
-		while (!shutdown_) {
-			// get a chunk from the stream
-			in->pull_chunk_multiplexed(chunk, &timestamps, 1e-6);
-			write_chunk();
-			if (wait_until_shutdown(next_pull)) break;
-			next_pull += chunk_interval;
-		}
-
-		// one final non-blocking pull, so that samples already buffered in the inlet when the stop
-		// arrived end up in the file rather than being dropped
-		try {
-			in->pull_chunk_multiplexed(chunk, &timestamps, 0.0);
-			write_chunk();
-		} catch (std::exception &e) {
-			// Preserve a footer, but report that draining failed.
-			recording_failed_ = true;
-			log_err("Could not drain stream ", streamid, " on stop: ", e.what());
-		}
+		control_->note(streamid, false);
+		if (end_reason != "cutoff_observed") ++control_->fallback_streams;
+		log_out("Collection ended for stream ", streamid, ": ", end_reason);
 	} catch (std::exception &) {
 		stop_offsets(offset_shutdown);
 		join_worker(offset_thread, teardown_grace);

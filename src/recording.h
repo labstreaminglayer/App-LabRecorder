@@ -35,8 +35,18 @@ public:
 	/// Requests shutdown without waiting. Callers must observe completion before normal exit.
 	~recording();
 
-	/// Ask all recording threads to wrap up. Returns immediately.
+	/// Fix the recorder-clock cutoff and request catch-up/finalization. Returns immediately.
 	void requestStop() noexcept;
+	struct FinalizationProgress {
+		size_t collecting = 0;
+		size_t catching_up = 0;
+		size_t fallback_streams = 0;
+		// Longest inactivity of any outstanding worker (other streams cannot hide a stall).
+		std::chrono::milliseconds idle{0};
+	};
+	FinalizationProgress finalizationProgress() const;
+	/// End catch-up early, preserving footers and recording the explicit truncation reason.
+	void finishCollecting() noexcept;
 	/// Wait at most timeout for all workers AND the output file to finish. Does not request stop.
 	bool waitForFinished(std::chrono::milliseconds timeout) const;
 	bool isFinished() const { return waitForFinished(std::chrono::milliseconds(0)); }

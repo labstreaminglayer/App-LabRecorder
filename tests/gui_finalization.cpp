@@ -15,6 +15,7 @@
 
 extern std::atomic<bool> release_finalization;
 extern std::atomic<int> recording_starts;
+extern std::atomic<bool> simulate_catchup;
 
 static void require(bool value, const char *message) {
 	if (!value) throw std::runtime_error(message);
@@ -74,6 +75,24 @@ int main(int argc, char **argv) {
 		auto *start = window.findChild<QPushButton *>("startButton");
 		auto *stopButton = window.findChild<QPushButton *>("stopButton");
 		require(start && stopButton && !start->isEnabled(), "Start enabled before completion");
+		simulate_catchup = true;
+		pump(5200);
+		require(command(socket, "status\n") == "catching_up\n", "progressing catch-up timed out");
+		require(stopButton->text().contains("Finish now"), "controlled finish action unavailable");
+		if (argc > 1 && std::string(argv[1]) == "--finish-now") {
+			QTimer::singleShot(0, [] {
+				for (auto *widget : QApplication::topLevelWidgets())
+					if (auto *dialog = qobject_cast<QMessageBox *>(widget))
+						for (auto *button : dialog->buttons())
+							if (button->text().startsWith("Finish now")) button->click();
+			});
+			stopButton->click();
+			pump(300);
+			require(release_finalization, "Finish now did not reach the backend");
+			require(command(socket, "status\n") == "stopped\n", "Finish now did not finalize");
+			return 0;
+		}
+		simulate_catchup = false;
 		pump(5200);
 		require(heartbeats > 100, "GUI event loop stopped during stalled finalization");
 		require(command(socket, "status\n") == "stalled\n", "stall was not reported");

@@ -72,7 +72,6 @@ private:
 	std::unique_ptr<recording> currentRecording;
 	bool finishing = false;
 	bool closeWhenFinished = false;
-	QElapsedTimer finalizationTimer;
 	QString recordingPath;
 	void confirmForceQuit();
 	void setRemoteState(const QString &state);

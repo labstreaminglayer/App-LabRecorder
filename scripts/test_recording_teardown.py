@@ -3,7 +3,7 @@
 
 Starts LSL outlets, records them with LabRecorderCLI, stops the recording and checks that
 
-* the recorder exits within ``--max-stop`` seconds (1.0 s by default) and with status 0,
+* the recorder exits within ``--max-stop`` seconds (4.0 s by default) and with status 0,
 * every recorded stream has a stream footer whose sample count matches its data,
 * pyxdf does not report the file as damaged, and
 * nothing that was sent before the stop is missing from the file.
@@ -399,6 +399,56 @@ def case_clock_offsets_collected(cli_path, xdf_path, max_stop):
     del eeg, markers
 
 
+def case_delayed_upstream(cli_path, xdf_path, max_stop):
+    """Keep receiving old data for longer than the CLI's five-second stop timeout."""
+    eeg, markers = make_outlets()
+    time.sleep(SETTLE)
+    with recorder(cli_path, xdf_path, stream_order=(EEG_NAME,)) as rec:
+        rec.wait_for([f"Started data collection for stream {EEG_NAME}"])
+        # Establish clock mapping while simulating an inlet that is already behind.
+        # Later backlog timestamps must advance beyond any locally buffered samples.
+        warmup_until = time.monotonic() + 6.5
+        while time.monotonic() < warmup_until:
+            eeg.push_sample([0.0] * EEG_CHANNELS, timestamp=pylsl.local_clock() - 30)
+            time.sleep(1 / EEG_RATE)
+        old = pylsl.local_clock() - 20
+        # Include a deducible interval followed by a gap: timestamp compression
+        # must not move the gap's sample backwards by one nominal interval.
+        second = old + 1 / EEG_RATE
+        expected = [old, second, second + 1 / EEG_RATE + 1 / EEG_RATE]
+        expected += [old + i for i in range(3, 7)]
+        def backlog():
+            for i, timestamp in enumerate(expected):
+                time.sleep(0.8)
+                eeg.push_sample([10000.0 + i] * EEG_CHANNELS, timestamp=timestamp)
+            # A future timestamp followed by another pre-stop timestamp must not
+            # cause an immediate close that drops the reordered sample.
+            eeg.push_sample([99999.0] * EEG_CHANNELS, timestamp=pylsl.local_clock() + 100)
+            time.sleep(0.3)
+            eeg.push_sample([10007.0] * EEG_CHANNELS, timestamp=old + 7)
+        publisher = threading.Thread(target=backlog)
+        publisher.start()
+        try:
+            duration = rec.stop()
+        finally:
+            publisher.join()
+    check(5 < duration < 10, f"catch-up did not extend the stop deadline: {duration}")
+    streams, _ = load_xdf_strict(xdf_path)
+    stream = stream_by_name(streams, EEG_NAME)
+    check_footer(stream)
+    values = stream["time_series"][:, 0].tolist()
+    check(all(10000.0 + i in values for i in range(8)), "late pre-stop samples were lost")
+    check(99999.0 not in values, "post-stop sample was retained")
+    raw, _ = pyxdf.load_xdf(xdf_path, synchronize_clocks=False, dejitter_timestamps=False)
+    raw_stream = stream_by_name(raw, EEG_NAME)
+    for i, timestamp in enumerate(expected + [old + 7]):
+        index = raw_stream["time_series"][:, 0].tolist().index(10000.0 + i)
+        check(raw_stream["time_stamps"][index] == timestamp, "stored timestamp was rewritten")
+    reason = stream["footer"]["info"]["collection_end"][0]["reason"][0]
+    check(reason == "cutoff_observed", f"wrong collection end reason: {reason}")
+    del eeg, markers
+
+
 CASES = [
     ("normal stop", case_normal_stop),
     ("stop before first sample", case_stop_before_first_sample),
@@ -407,6 +457,7 @@ CASES = [
     ("no buffered samples lost", case_no_buffered_samples_lost),
     ("gated stream is drained", case_gated_stream_is_drained),
     ("clock offsets collected", case_clock_offsets_collected),
+    ("delayed upstream catch-up", case_delayed_upstream),
 ]
 
 
@@ -416,7 +467,7 @@ def main():
     parser.add_argument(
         "--max-stop",
         type=float,
-        default=1.0,
+        default=4.0,
         help="upper bound in seconds for how long teardown may take (default: %(default)s)",
     )
     args = parser.parse_args()
