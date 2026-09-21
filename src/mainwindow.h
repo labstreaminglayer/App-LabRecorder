@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 #include <QCloseEvent>
+#include <QElapsedTimer>
 #include <QComboBox>
 #include <QListWidget>
 #include <QMainWindow>
@@ -42,7 +43,7 @@ public:
 	~MainWindow() noexcept override;
 
 private slots:
-	void statusUpdate(void) const;
+	void statusUpdate(void);
 	void closeEvent(QCloseEvent *ev) override;
 	void blockSelected(const QString &block);
 	std::vector<lsl::stream_info> refreshStreams(void);
@@ -69,6 +70,11 @@ private:
 	void save_config(QString filename);
 
 	std::unique_ptr<recording> currentRecording;
+	bool finishing = false;
+	bool closeWhenFinished = false;
+	QString recordingPath;
+	void confirmForceQuit();
+	void setRemoteState(const QString &state);
 	std::unique_ptr<RemoteControlSocket> rcs;
 
 	int startTime;
