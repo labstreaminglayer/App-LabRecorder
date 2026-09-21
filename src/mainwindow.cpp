@@ -15,6 +15,7 @@ using QRegExp = QRegularExpression;
 #endif
 
 #include <string>
+#include <cstdlib>
 #include <vector>
 
 // recording class
@@ -88,29 +89,69 @@ MainWindow::MainWindow(QWidget *parent, const char *config_file)
 
 	timer = std::make_unique<QTimer>(this);
 	connect(&*timer, &QTimer::timeout, this, &MainWindow::statusUpdate);
-	timer->start(1000);
+	timer->start(100);
 
 	QString cfgfilepath = find_config_file(config_file);
 	load_config(cfgfilepath);
 }
 
-void MainWindow::statusUpdate() const {
-	if (currentRecording) {
-		auto elapsed = static_cast<int>(lsl::local_clock() - startTime);
-		QString recFilename = replaceFilename(QDir::cleanPath(ui->lineEdit_template->text()));
-		auto fileinfo = QFileInfo(QDir::cleanPath(ui->rootEdit->text()) + '/' + recFilename);
-		fileinfo.refresh();
-		auto size = fileinfo.size();
-		QString timeString = QStringLiteral("Recording to %1 (%2; %3kb)")
-								 .arg(QDir::toNativeSeparators(recFilename),
-									 QTime(0,0).addSecs(elapsed).toString("hh:mm:ss"),
-									 QString::number(size / 1000));
-		statusBar()->showMessage(timeString);
+void MainWindow::setRemoteState(const QString &state) {
+	if (rcs) rcs->recordingState = state;
+}
+
+void MainWindow::statusUpdate() {
+	if (!currentRecording) return;
+	if (finishing) {
+		if (currentRecording->isFinished()) {
+			const auto error = currentRecording->finalizationError();
+			currentRecording.reset();
+			finishing = false;
+			ui->startButton->setEnabled(true);
+			ui->stopButton->setEnabled(false);
+			ui->stopButton->setText("Stop");
+			setRemoteState(error.empty() ? "stopped" : "error");
+			statusBar()->showMessage(error.empty() ? QStringLiteral("Stopped — file finalized")
+				: QStringLiteral("Finalization failed — recording may be incomplete"));
+			if (!error.empty()) {
+				closeWhenFinished = false;
+				QMessageBox::critical(this, "Recording incomplete",
+					QString::fromStdString(error) + "\n" + recordingPath);
+			}
+			if (closeWhenFinished) close();
+		} else if (finalizationTimer.elapsed() >= 5000) {
+			setRemoteState("stalled");
+			statusBar()->showMessage(QStringLiteral("Still finishing — file is not finalized. Wait, or choose Force quit."));
+			ui->stopButton->setText(QStringLiteral("Force quit…"));
+			ui->stopButton->setEnabled(true);
+		}
+		return;
 	}
+	const auto elapsed = static_cast<int>(lsl::local_clock() - startTime);
+	const QFileInfo fileinfo(recordingPath);
+	statusBar()->showMessage(QStringLiteral("Recording to %1 (%2; %3kb)")
+		.arg(QDir::toNativeSeparators(recordingPath),
+			QTime(0, 0).addSecs(elapsed).toString("hh:mm:ss"), QString::number(fileinfo.size() / 1000)));
+}
+
+void MainWindow::confirmForceQuit() {
+	QMessageBox dialog(QMessageBox::Warning, "Recording is still finishing",
+		"The file has not been finalized. Force quitting may lose buffered samples or leave "
+		"an incomplete recording.\n" + recordingPath, QMessageBox::NoButton, this);
+	auto *wait = dialog.addButton("Keep waiting", QMessageBox::RejectRole);
+	auto *quit = dialog.addButton("Force quit", QMessageBox::DestructiveRole);
+	dialog.setDefaultButton(wait);
+	dialog.setEscapeButton(wait);
+	dialog.exec();
+	if (dialog.clickedButton() == quit && currentRecording && !currentRecording->isFinished())
+		std::_Exit(3);
 }
 
 void MainWindow::closeEvent(QCloseEvent *ev) {
-	if (currentRecording) ev->ignore();
+	if (!currentRecording) { ev->accept(); return; }
+	ev->ignore();
+	closeWhenFinished = true;
+	if (!finishing) stopRecording();
+	else if (finalizationTimer.elapsed() >= 5000) confirmForceQuit();
 }
 
 void MainWindow::blockSelected(const QString &block) {
@@ -466,8 +507,18 @@ void MainWindow::startRecording() {
 		}
 		qInfo() << "Missing: " << missingStreams;
 
-		currentRecording = std::make_unique<recording>(recFilename.toStdString(),
-			requestedAndAvailableStreams, watchfor, syncOptionsByStreamName, true);
+		try {
+			currentRecording = std::make_unique<recording>(recFilename.toStdString(),
+				requestedAndAvailableStreams, watchfor, syncOptionsByStreamName, true);
+		} catch (const std::exception &e) {
+			setRemoteState("error");
+			QMessageBox::critical(this, "Cannot start recording", QString::fromStdString(e.what()));
+			return;
+		}
+		recordingPath = recFilename;
+		finishing = false;
+		closeWhenFinished = false;
+		setRemoteState("recording");
 		ui->stopButton->setEnabled(true);
 		ui->startButton->setEnabled(false);
 		startTime = (int)lsl::local_clock();
@@ -479,18 +530,18 @@ void MainWindow::startRecording() {
 }
 
 void MainWindow::stopRecording() {
-
-	if (currentRecording) {
-		try {
-			currentRecording = nullptr;
-		} catch (std::exception &e) { qWarning() << "exception on stop: " << e.what(); }
-		ui->startButton->setEnabled(true);
-		ui->stopButton->setEnabled(false);
-		statusBar()->showMessage("Stopped");
-	} else if (!hideWarnings) {
-		QMessageBox::information(
-			this, "Not recording", "There is not ongoing recording", QMessageBox::Ok);
+	if (!currentRecording) return;
+	if (finishing) {
+		if (finalizationTimer.elapsed() >= 5000) confirmForceQuit();
+		return;
 	}
+	finishing = true;
+	finalizationTimer.start();
+	currentRecording->requestStop();
+	ui->startButton->setEnabled(false);
+	ui->stopButton->setEnabled(false);
+	setRemoteState("finishing");
+	statusBar()->showMessage(QStringLiteral("Finishing recording…"));
 }
 
 void MainWindow::selectAllStreams() {
@@ -640,6 +691,8 @@ void MainWindow::enableRcs(bool bEnable) {
 	} else if (bEnable) {
 		uint16_t port = ui->rcsport->value();
 		rcs = std::make_unique<RemoteControlSocket>(port);
+		setRemoteState(!currentRecording ? "stopped" : !finishing ? "recording"
+			: finalizationTimer.elapsed() >= 5000 ? "stalled" : "finishing");
 		// TODO: Add some method to RemoteControlSocket to report if its server is listening (i.e. was successful).
 		connect(rcs.get(), &RemoteControlSocket::refresh_streams, this, &MainWindow::refreshStreams);
 		connect(rcs.get(), &RemoteControlSocket::start, this, &MainWindow::rcsStartRecording);
@@ -669,6 +722,7 @@ void MainWindow::rcsStartRecording() {
 }
 
 void MainWindow::rcsStopRecording() {
+	if (finishing) return; // Remote retries must never open a force-quit dialog.
 	hideWarnings = true;
 	stopRecording();
 }

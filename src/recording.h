@@ -2,6 +2,8 @@
 #define RECORDING_H
 
 #include <lsl_cpp.h>
+#include <chrono>
+#include <future>
 #include <map>
 #include <memory>
 #include <string>
@@ -30,19 +32,28 @@ public:
 		const std::vector<std::string> &watchfor, std::map<std::string, int> syncOptions,
 		bool collect_offsets = true);
 
-	/** Destructor.
-	 * Stops and joins every recording thread, then closes and flushes the file. Network waits
-	 * observe shutdown promptly; a slow disk write must finish before destruction returns.
-	 */
+	/// Requests shutdown without waiting. Callers must observe completion before normal exit.
 	~recording();
 
 	/// Ask all recording threads to wrap up. Returns immediately.
 	void requestStop() noexcept;
+	/// Wait at most timeout for all workers AND the output file to finish. Does not request stop.
+	bool waitForFinished(std::chrono::milliseconds timeout) const;
+	bool isFinished() const { return waitForFinished(std::chrono::milliseconds(0)); }
+	/// Available after completion: empty on success, otherwise a finalization error.
+	std::string finalizationError() const;
+	/// Retain a completion receipt when releasing the nonblocking recording handle.
+	std::shared_future<std::string> completionResult() const { return result_; }
+	recording(const recording &) = delete;
+	recording &operator=(const recording &) = delete;
 
 private:
 	struct impl;
-	/// Workers retain the state while running; destruction joins them before releasing it.
-	std::shared_ptr<impl> impl_;
+	struct completion;
+	// The finalizer owns impl, never the UI handle. Dropping the handle cannot close a file
+	// or join a thread on the caller; completion is published only after impl is destroyed.
+	std::shared_ptr<completion> completion_;
+	std::shared_future<std::string> result_;
 };
 
 #endif

@@ -63,9 +63,13 @@ The Block/Task field can be overwriten or selected among a list of items found i
 
 <!--If the checkbox "Enable scripted actions" is checked, then scripted actions that are defined in your current config file will be automatically invoked when you click Start, Stop, or select a block. This check box is by normally unchecked unless you have custom-tailored a configuration to your experiment or experimentation environment.-->
 
-Click "Start" to start a recording. If everything goes well, the status bar will now display the time since you started the recording, and more importantly, the current file size (the number before the kb) will grow slowly. This is a way to check whether you are still in fact recording data. The recording program cannot be closed while you are recording (as a safety measure).
+Click "Start" to start a recording. If everything goes well, the status bar will now display the time since you started the recording, and more importantly, the current file size (the number before the kb) will grow slowly. This is a way to check whether you are still in fact recording data. Closing the window requests Stop and waits for finalization while keeping the interface responsive.
 
-When you are done recording, click the "Stop" button. You can now close the program. See [the xdf repository](https://github.com/sccn/xdf) for tools and information on how to use the XDF files.
+When you are done recording, click **Stop**. The status changes to **Finishing recording…**; a new recording cannot start until the file is finalized. **Stopped — file finalized** means the workers have finished and the file has been flushed and closed.
+
+If finalization takes more than five seconds, **Force quit…** becomes available. You can keep waiting or explicitly force the application to exit. A forced exit may leave an incomplete file or lose buffered samples; it never reports successful finalization. Completed chunks are flushed periodically and footers immediately to improve recovery, but this cannot guarantee recovery from a stalled disk or forced exit.
+
+`LabRecorderCLI` waits at most five seconds after Enter. Use `--stop-timeout SECONDS` before the output filename to change that deadline (greater than zero, at most 3600). Exit status **0** means finalization succeeded; **3** means the deadline expired and the file may be incomplete; **4** means recording or finalization failed. See [the xdf repository](https://github.com/sccn/xdf) for tools and information on how to use the XDF files.
 
 ## Preparing a Full Study
 
@@ -89,8 +93,11 @@ Currently supported commands include:
 * `select none`
 * `start`
 * `stop`
+* `status`
 * `update`
 * `filename ...`
+
+`stop` acknowledges the request with `OK`; this is not a completion notification. Poll `status` for a newline-terminated state: `recording`, `finishing`, `stalled`, `stopped`, or `error`. Wait for `stopped` before restarting or using the file. `start` is rejected with `ERROR <state>` while a recording is active or finalizing.
 
 `filename` is followed by a series of space-delimited options enclosed in curly braces. e.g. {root:C:\root_data_dir}
 * `root` - Sets the root data directory.

@@ -5,6 +5,8 @@
 // network dependency.
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -18,7 +20,13 @@ struct timeout_error : std::runtime_error {
 	timeout_error() : std::runtime_error("test timeout") {}
 };
 struct inlet_state {
-	enum mode { delayed_result, unavailable, stalled_worker } behavior;
+	enum mode {
+		delayed_result,
+		unavailable,
+		stalled_worker,
+		permanent_stall,
+		failed_transfer
+	} behavior;
 	std::atomic<bool> query_started{false}, query_finished{false};
 	std::atomic<int> query_calls{0};
 	clock::time_point result_ready;
@@ -34,6 +42,7 @@ class stream_info {
 	std::string uid() const { return "finalization-test"; }
 	std::string source_id() const { return uid(); }
 	channel_format_t channel_format() const { return cf_float32; }
+	bool matches_query(const std::string &) const { return true; }
 	double nominal_srate() const { return 100; }
 	std::string as_xml() const {
 		return "<info><name>FinalizationTest</name><channel_count>1</channel_count>"
@@ -46,6 +55,11 @@ inline double local_clock() {
 	return std::chrono::duration<double>(clock::now().time_since_epoch()).count();
 }
 inline std::vector<stream_info> resolve_stream(const std::string &, int, double) { return {}; }
+inline std::vector<stream_info> resolve_streams() {
+	return {stream_info(std::make_shared<inlet_state>(std::getenv("LSL_TEST_STALL")
+														  ? inlet_state::permanent_stall
+														  : inlet_state::delayed_result))};
+}
 
 class stream_inlet {
 	stream_info info_;
@@ -59,6 +73,10 @@ class stream_inlet {
 	stream_info info(double) { return info_; }
 	int get_channel_count() const { return 1; }
 	template <class T> double pull_sample(std::vector<T> &sample, double timeout) {
+		if (info_.state->behavior == inlet_state::failed_transfer) {
+			info_.state->query_started = true;
+			throw std::runtime_error("simulated transfer failure");
+		}
 		if (!sent_sample_) {
 			sent_sample_ = true;
 			sample.assign(1, T{});
@@ -77,6 +95,11 @@ class stream_inlet {
 		if (state.query_calls++ == 0)
 			state.result_ready = clock::now() + std::chrono::milliseconds(600);
 		state.query_started = true;
+		if (state.behavior == inlet_state::permanent_stall) {
+			std::cout << "TEST: offset query stalled" << std::endl;
+			for (;;)
+				std::this_thread::sleep_for(std::chrono::hours(1));
+		}
 		if (state.behavior == inlet_state::stalled_worker) {
 			// Deliberately exceed both the offset grace and outer join deadline. Even
 			// an unexpectedly slow worker must finish before the caller can exit the

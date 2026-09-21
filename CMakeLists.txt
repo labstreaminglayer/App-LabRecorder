@@ -229,11 +229,36 @@ if(LABRECORDER_BUILD_TESTING)
     # liblsl into this target: its timeout behavior is supplied by the test double.
     target_include_directories(test_recording_finalization PRIVATE tests/fake_lsl src)
     target_link_libraries(test_recording_finalization PRIVATE xdfwriter Threads::Threads)
-    foreach(scenario IN ITEMS delayed unavailable stalled)
+    foreach(scenario IN ITEMS delayed unavailable stalled failed abandoned)
         add_test(NAME recording_finalization_${scenario}
             COMMAND test_recording_finalization ${scenario})
         set_tests_properties(recording_finalization_${scenario} PROPERTIES TIMEOUT 20)
     endforeach()
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_executable(test_recording_cli src/clirecorder.cpp src/recording.cpp)
+    target_include_directories(test_recording_cli PRIVATE tests/fake_lsl src)
+    target_link_libraries(test_recording_cli PRIVATE xdfwriter Threads::Threads)
+    add_test(NAME recording_cli_timeout
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cli_finalization.py
+            $<TARGET_FILE:test_recording_cli>)
+    set_tests_properties(recording_cli_timeout PROPERTIES TIMEOUT 25)
+    if(LABRECORDER_BUILD_GUI)
+        add_executable(test_gui_finalization tests/gui_finalization.cpp tests/gui_recording_stub.cpp
+            src/mainwindow.cpp src/mainwindow.h src/mainwindow.ui src/tcpinterface.cpp src/tcpinterface.h)
+        target_include_directories(test_gui_finalization PRIVATE src)
+        target_link_libraries(test_gui_finalization PRIVATE Qt6::Widgets Qt6::Network LSL::lsl Threads::Threads)
+        if(WIN32)
+            add_custom_command(TARGET test_gui_finalization POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:LSL::lsl> $<TARGET_FILE_DIR:test_gui_finalization>)
+        endif()
+        add_test(NAME recording_gui_finalization COMMAND test_gui_finalization)
+        add_test(NAME recording_gui_force_exit
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gui_force_exit.py
+                $<TARGET_FILE:test_gui_finalization>)
+        set_tests_properties(recording_gui_finalization recording_gui_force_exit PROPERTIES TIMEOUT 25
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
 endif()
 
 # =============================================================================

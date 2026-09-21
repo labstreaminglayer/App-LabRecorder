@@ -104,8 +104,10 @@ ctest --test-dir build -C Release --output-on-failure
 
 These tests compile the recording implementation and XDF writer against a controlled inlet.
 They cover delayed clock measurements, stopping during an unavailable measurement, and a
-worker that exceeds the join warning deadline. Every case checks that the file is finalized
-immediately when the recording is destroyed.
+worker that exceeds the join warning deadline. Completion is checked only after the file is
+closed; stop requests remain nonblocking. A subprocess test verifies bounded CLI exit with a
+worker that never returns, and GUI builds test event-loop responsiveness, stalled-state controls,
+remote status, restart rejection, and deferred window close. The Qt test uses the offscreen platform.
 
 The real-stream integration suite additionally requires `pylsl` and `pyxdf`:
 
