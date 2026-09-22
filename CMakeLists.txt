@@ -11,8 +11,12 @@ if(POLICY CMP0177)
     cmake_policy(SET CMP0177 NEW)
 endif()
 
+# Keep the fallback current when tagging releases: source archives have no .git.
+include(cmake/ProjectVersion.cmake)
+labrecorder_version_from_git(LABRECORDER_VERSION LABRECORDER_VERSION_FULL FALLBACK "1.18.0")
+
 project(LabRecorder
-    VERSION 1.17.0
+    VERSION ${LABRECORDER_VERSION}
     DESCRIPTION "Record and write LabStreamingLayer streams to an XDF file"
     HOMEPAGE_URL "https://github.com/labstreaminglayer/App-LabRecorder/"
     LANGUAGES C CXX
@@ -40,7 +44,7 @@ set(LSL_INSTALL_ROOT "" CACHE PATH "Path to installed liblsl")
 
 # Priority 4: Fetch from GitHub if not found
 option(LSL_FETCH_IF_MISSING "Fetch liblsl from GitHub if not found locally" ON)
-set(LSL_FETCH_REF "v1.17.5" CACHE STRING "liblsl git ref to fetch (tag, branch, or commit)")
+set(LSL_FETCH_REF "v1.18.0.b3" CACHE STRING "liblsl git ref to fetch (tag, branch, or commit)")
 
 # =============================================================================
 # Find/Fetch liblsl
@@ -353,13 +357,13 @@ LSL_get_target_arch()
 LSL_get_os_name()
 
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION "${LABRECORDER_VERSION_FULL}")
 set(CPACK_PACKAGE_VENDOR "Labstreaminglayer")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
 set(CPACK_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
-set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}-${LSL_OS}_${LSL_ARCH}")
+set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${LABRECORDER_VERSION_FULL}-${LSL_OS}_${LSL_ARCH}")
 set(CPACK_STRIP_FILES ON)
 
 if(WIN32)
@@ -370,6 +374,10 @@ elseif(APPLE)
     set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME}")
 else()
     set(CPACK_GENERATOR DEB TGZ)
+    # Debian prereleases must sort before the corresponding stable release.
+    string(REGEX REPLACE
+        "^([0-9]+\\.[0-9]+\\.[0-9]+)[.-]?((alpha|beta|rc|a|b)[0-9]+)$"
+        "\\1~\\2" CPACK_DEBIAN_PACKAGE_VERSION "${LABRECORDER_VERSION_FULL}")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "LabStreamingLayer Developers")
     set(CPACK_DEBIAN_PACKAGE_SECTION "science")
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")

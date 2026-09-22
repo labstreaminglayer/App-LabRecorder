@@ -148,3 +148,14 @@ If a device is displayed in red when you start recording (and it is checked), it
 # Build Instructions
 
 Please follow the general [LSL App build instructions](https://labstreaminglayer.readthedocs.io/dev/app_build.html).
+
+## Build version
+
+CMake uses the nearest reachable version tag, such as `1.18.0`, `v1.18.0`,
+or `v1.18.0.b1`. Package versions and filenames retain prerelease suffixes;
+CMake's project version and macOS bundle versions use the numeric part.
+
+Source archives (including Homebrew tarball builds), missing Git, and checkouts
+without matching tags use the fallback in `CMakeLists.txt`. Update that literal
+when preparing each release, before creating its tag. Packagers can explicitly
+set a version with `-DLABRECORDER_VERSION_OVERRIDE=1.17.1`.

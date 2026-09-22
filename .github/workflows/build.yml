@@ -17,7 +17,7 @@ name: Build
 on:
   push:
     branches: [main, master, dev]
-    tags: ['v*']
+    tags: ['v*', '[0-9]*']
   pull_request:
     branches: [main, master]
   release:
@@ -46,6 +46,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # -----------------------------------------------------------------------
       # Install CMake 3.28+ (Ubuntu 22.04 ships with 3.22)
@@ -149,7 +151,10 @@ jobs:
       - name: Extract Package
         run: |
           cd packages
-          tar -xzf *.tar.gz
+          PACKAGE=$(find . -maxdepth 1 -name '*.tar.gz' -print -quit)
+          PACKAGE=$(basename "$PACKAGE")
+          echo "SIGNED_PACKAGE_NAME=${PACKAGE%.tar.gz}-signed.tar.gz" >> "$GITHUB_ENV"
+          tar -xzf "$PACKAGE"
           # Move contents out of versioned subdirectory to packages/
           SUBDIR=$(ls -d LabRecorder-*/ | head -1)
           mv "$SUBDIR"/* .
@@ -224,13 +229,9 @@ jobs:
           # Remove original unsigned package
           rm -f *.tar.gz
 
-          # Get project version from CMakeLists.txt
-          VERSION=$(grep -A1 'project(LabRecorder' ../CMakeLists.txt | grep VERSION | sed 's/.*VERSION \([0-9.]*\).*/\1/')
-          echo "Detected version: $VERSION"
-
           # Create signed package with CLI and its Frameworks (universal binary)
           # Note: LabRecorder.cfg, LICENSE, README.md are inside LabRecorder.app/Contents/MacOS/
-          tar -cvzf "LabRecorder-${VERSION}-macOS_universal-signed.tar.gz" \
+          tar -cvzf "$SIGNED_PACKAGE_NAME" \
             LabRecorder.app LabRecorderCLI Frameworks
 
           echo "Created package:"
