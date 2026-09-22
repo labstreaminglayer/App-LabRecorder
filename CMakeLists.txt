@@ -194,6 +194,20 @@ if(LABRECORDER_BUILD_GUI)
         LSL::lsl
     )
 
+    # Build explicitly with --target teststreamselection; uses the actual GUI code.
+    add_executable(teststreamselection EXCLUDE_FROM_ALL
+        src/test_stream_selection.cpp
+        src/mainwindow.cpp
+        src/mainwindow.h
+        src/mainwindow.ui
+        src/recording.cpp
+        src/tcpinterface.cpp
+        src/tcpinterface.h
+    )
+    target_link_libraries(teststreamselection PRIVATE
+        xdfwriter Qt6::Core Qt6::Widgets Qt6::Network Threads::Threads LSL::lsl
+    )
+
     # macOS bundle configuration
     if(APPLE)
         set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.labstreaminglayer.${PROJECT_NAME}")

@@ -84,6 +84,8 @@ private slots:
 	void rcsportValueChangedInt(int value);
 
 private:
+	friend class StreamSelectionTest;
+
 	enum class StartResult { Started, AlreadyRecording, Failed };
 	enum class SelectResult { Selected, NoMatches, InvalidQuery };
 
