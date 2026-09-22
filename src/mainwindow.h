@@ -28,7 +28,7 @@ public:
 	
 	QString listName() const { return QString::fromStdString(name + " (" + host + ")"); }
 	bool matches(const lsl::stream_info &info) const {
-		if (!id.empty() && !info.source_id().empty())
+		if (!id.empty() || !info.source_id().empty())
 			return id == info.source_id() && name == info.name() && type == info.type();
 		return name == info.name() && type == info.type() && host == info.hostname() &&
 			   sessionId == info.session_id();
