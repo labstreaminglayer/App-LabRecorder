@@ -125,6 +125,7 @@ void MainWindow::blockSelected(const QString &block) {
 
 void MainWindow::load_config(QString filename) {
 	qInfo() << "loading config file " << QDir::toNativeSeparators(filename);
+	updateStreamSelectionFromUi();
 	bool auto_start = false;
 	try {
 		QSettings pt(QDir::cleanPath(filename), QSettings::Format::IniFormat);
@@ -133,11 +134,10 @@ void MainWindow::load_config(QString filename) {
 		// required streams
 		// ----------------------------
 		auto required = pt.value("RequiredStreams").toStringList();
-#if QT_VERSION >= QT_VERSION_CHECK(5,14,0)
-		missingStreams = QSet<QString>(required.begin(), required.end());
-#else
-		missingStreams = required.toSet();
-#endif
+		required.removeDuplicates();
+		missingStreams.clear();
+		for (const auto &name : required)
+			missingStreams.append(MissingStreamItem{name, true, std::nullopt});
 
 		// ----------------------------
 		// online sync streams
@@ -263,22 +263,25 @@ void MainWindow::load_config(QString filename) {
 
 	} catch (std::exception &e) { qWarning() << "Problem parsing config file: " << e.what(); }
 	// std::cout << "refreshing streams ..." <<std::endl;
+	// Apply the newly loaded required-stream defaults before saving UI state on refresh.
+	rebuildStreamList();
 	refreshStreams();
 
 	if (auto_start) { startRecording(); }
  }
 
 void MainWindow::save_config(QString filename) {
+	updateStreamSelectionFromUi();
 	QSettings settings(filename, QSettings::Format::IniFormat);
 	settings.setValue("StudyRoot", QDir::cleanPath(ui->rootEdit->text()));
 	if (!ui->check_bids->isChecked())
 		settings.setValue("PathTemplate", QDir::cleanPath(ui->lineEdit_template->text()));
-	// Build QStringList from missingStreams and knownStreams that are missing.
-	QStringList requiredStreams = missingStreams.values();
+	// Save only the selected streams, whether currently available or missing.
+	QStringList requiredStreams = selectedMissingStreams();
 	for (auto &k : knownStreams) {
 		if (k.checked) { requiredStreams.append(k.listName()); }
 	}
-	qInfo() << missingStreams;
+	qInfo() << selectedMissingStreams();
 	settings.setValue("RequiredStreams", requiredStreams);
 	// Stub.
 }
@@ -287,22 +290,81 @@ QString info_to_listName(const lsl::stream_info& info) {
 	return QString::fromStdString(info.name() + " (" + info.hostname() + ")");
 }
 
-void MainWindow::updateKnownStreamSelectionFromUi() {
+bool MissingStreamItem::matches(const lsl::stream_info &info) const {
+	return lastKnown ? lastKnown->matches(info) : label == info_to_listName(info);
+}
+
+// XPath string literals do not use backslash escaping. Handle metadata containing quotes.
+static std::string queryLiteral(const std::string &value) {
+	if (value.find('\'') == std::string::npos) return "'" + value + "'";
+	if (value.find('"') == std::string::npos) return "\"" + value + "\"";
+	std::string result = "concat(";
+	size_t start = 0, quote;
+	while ((quote = value.find('\'', start)) != std::string::npos) {
+		result += "'" + value.substr(start, quote - start) + "',\"'\",";
+		start = quote + 1;
+	}
+	return result + "'" + value.substr(start) + "')";
+}
+
+QStringList MainWindow::selectedMissingStreams() const {
+	QStringList selected;
+	for (const auto &missing : missingStreams) {
+		if (missing.checked) selected.append(missing.label);
+	}
+	return selected;
+}
+
+std::vector<std::string> MainWindow::selectedMissingStreamQueries() const {
+	std::vector<std::string> queries;
+	const QRegularExpression re("(.+)\\s+\\((\\S+)\\)");
+	for (const auto &missing : missingStreams) {
+		if (!missing.checked) continue;
+		std::string query;
+		if (missing.lastKnown) {
+			const auto &stream = *missing.lastKnown;
+			query = "name=" + queryLiteral(stream.name) + " and type=" + queryLiteral(stream.type) +
+				" and source_id=" + queryLiteral(stream.id);
+			if (stream.id.empty())
+				query += " and hostname=" + queryLiteral(stream.host) +
+					" and session_id=" + queryLiteral(stream.sessionId);
+		} else {
+			// Preserve the name/host semantics of configured RequiredStreams entries.
+			const auto match = re.match(missing.label);
+			const QString name = match.hasMatch() ? match.captured(1) : missing.label;
+			query = "name=" + queryLiteral(name.toStdString());
+			if (match.hasMatch() && match.captured(2).size() > 1)
+				query += " and hostname=" + queryLiteral(match.captured(2).toStdString());
+		}
+		queries.push_back(query);
+	}
+	return queries;
+}
+
+void MainWindow::updateStreamSelectionFromUi() {
 	for (int i = 0; i < ui->streamList->count(); i++) {
 		QListWidgetItem *item = ui->streamList->item(i);
 		bool ok = false;
 		int knownIndex = item->data(Qt::UserRole).toInt(&ok);
 		if (ok && knownIndex >= 0 && knownIndex < knownStreams.count())
 			knownStreams[knownIndex].checked = item->checkState() == Qt::Checked;
+		else if (ok && knownIndex < 0 && -knownIndex <= missingStreams.count())
+			missingStreams[-knownIndex - 1].checked = item->checkState() == Qt::Checked;
 	}
 }
 
 void MainWindow::rebuildStreamList() {
 	const QBrush good_brush(QColor(0, 128, 0)), bad_brush(QColor(255, 0, 0));
 	ui->streamList->clear();
-	for (auto& m : std::as_const(missingStreams)) {
-		auto *item = new QListWidgetItem(m, ui->streamList);
-		item->setCheckState(Qt::Checked);
+	for (int i = 0; i < missingStreams.count(); ++i) {
+		const auto &missing = missingStreams[i];
+		auto *item = new QListWidgetItem(missing.label, ui->streamList);
+		item->setData(Qt::UserRole, -i - 1);
+		item->setCheckState(missing.checked ? Qt::Checked : Qt::Unchecked);
+		if (missing.lastKnown)
+			item->setToolTip(QString("Type: %1\nSource ID: %2")
+				.arg(QString::fromStdString(missing.lastKnown->type),
+					QString::fromStdString(missing.lastKnown->id)));
 		item->setForeground(bad_brush);
 		ui->streamList->addItem(item);
 	}
@@ -328,10 +390,10 @@ void MainWindow::rebuildStreamList() {
  */
 std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 	const std::vector<lsl::stream_info> resolvedStreams = lsl::resolve_streams(1.0);
-	updateKnownStreamSelectionFromUi();
+	updateStreamSelectionFromUi();
 
 	// For each item in resolvedStreams, ignore if already in knownStreams, otherwise add to knownStreams.
-	// if in missingStreams then also mark it as required (--> checked by default) and remove from missingStreams.
+	// Carry over a missing item's selection when the stream becomes available.
 	for (const auto& s : resolvedStreams) {
 		bool known = false;
 		for (auto &k : knownStreams) {
@@ -342,9 +404,14 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 			}
 		}
 		if (!known) {
-			bool found = missingStreams.contains(info_to_listName(s));
-			knownStreams << StreamItem(s, found);
-			if (found) { missingStreams.remove(info_to_listName(s)); }
+			bool checked = false;
+			for (int i = missingStreams.count() - 1; i >= 0; --i) {
+				if (missingStreams[i].matches(s)) {
+					checked |= missingStreams[i].checked;
+					missingStreams.removeAt(i);
+				}
+			}
+			knownStreams << StreamItem(s, checked);
 		}
 	}
 	// For each item in knownStreams; if it is not resolved then drop it. If it was checked then add back to missingStreams.
@@ -359,7 +426,7 @@ std::vector<lsl::stream_info> MainWindow::refreshStreams() {
 			r_ind++;
 		}
 		if (!resolved) {
-			if (k.checked) { missingStreams += k.listName(); }
+			if (k.checked) missingStreams.append(MissingStreamItem{k.listName(), true, k});
 			knownStreams.removeAt(k_ind);
 		} else {
 			k_ind++;
@@ -387,10 +454,12 @@ MainWindow::StartResult MainWindow::startRecording() {
 	if (!currentRecording) {
 		// automatically refresh streams
 		const std::vector<lsl::stream_info> requestedAndAvailableStreams = refreshStreams();
+		const QStringList selectedMissing = selectedMissingStreams();
+		const auto watchfor = selectedMissingStreamQueries();
 
 		if (!hideWarnings) {
 			// if a checked stream is now missing
-			if (!missingStreams.isEmpty()) {
+			if (!selectedMissing.isEmpty()) {
 				// are you sure?
 				QMessageBox msgBox(QMessageBox::Warning, "Stream not found",
 					"At least one of the streams that you checked seems to be offline",
@@ -453,28 +522,7 @@ MainWindow::StartResult MainWindow::startRecording() {
 			return StartResult::Failed;
 		}
 
-		std::vector<std::string> watchfor;
-		for (const QString &missing : std::as_const(missingStreams)) {
-            std::string query;
-			// Convert missing to query expected by lsl::resolve_stream
-			// name='BioSemi' and hostname=AASDFSDF
-			QRegularExpression re("(.+)\\s+\\((\\S+)\\)");
-            QRegularExpressionMatch match = re.match(missing);
-            if (match.hasMatch())
-            {
-                QString name = match.captured(1);
-                QString host = match.captured(2);
-                query = "name='" + match.captured(1).toStdString() + "'";
-                if (host.size() > 1) {
-                    query += " and hostname='" + host.toStdString() + "'";
-                }
-            } else {
-                // Regexp failed but we can try using the entire string as the stream name.
-                query = "name='" + missing.toStdString() + "'";
-            }
-			watchfor.push_back(query);
-		}
-		qInfo() << "Missing: " << missingStreams;
+		qInfo() << "Missing: " << selectedMissing;
 
 		currentRecording = std::make_unique<recording>(recFilename.toStdString(),
 			requestedAndAvailableStreams, watchfor, syncOptionsByStreamName, true);
@@ -528,7 +576,7 @@ bool MainWindow::hasSelectedStreams() const {
 }
 
 MainWindow::SelectResult MainWindow::selectStreams(const QString &query) {
-	updateKnownStreamSelectionFromUi();
+	updateStreamSelectionFromUi();
 	std::vector<lsl::stream_info> matchedStreams;
 	try {
 		matchedStreams = lsl::resolve_stream(query.toStdString(), 0, 1.0);
@@ -549,7 +597,9 @@ MainWindow::SelectResult MainWindow::selectStreams(const QString &query) {
 			}
 		}
 		if (!known) knownStreams << StreamItem(stream, true);
-		missingStreams.remove(info_to_listName(stream));
+		for (int i = missingStreams.count() - 1; i >= 0; --i) {
+			if (missingStreams[i].matches(stream)) missingStreams.removeAt(i);
+		}
 	}
 	rebuildStreamList();
 	return SelectResult::Selected;

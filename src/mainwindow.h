@@ -7,6 +7,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <memory> //for std::unique_ptr
+#include <optional>
 
 // LSL
 #include <lsl_cpp.h>
@@ -48,6 +49,13 @@ public:
 	bool checked;
 };
 
+struct MissingStreamItem {
+	QString label;
+	bool checked;
+	// Configured requirements have only a label; discovered streams retain their identity.
+	std::optional<StreamItem> lastKnown;
+	bool matches(const lsl::stream_info &info) const;
+};
 
 class MainWindow : public QMainWindow {
 	Q_OBJECT
@@ -86,7 +94,9 @@ private:
 	StartResult startRecording();
 	SelectResult selectStreams(const QString &query);
 	bool hasSelectedStreams() const;
-	void updateKnownStreamSelectionFromUi();
+	QStringList selectedMissingStreams() const;
+	std::vector<std::string> selectedMissingStreamQueries() const;
+	void updateStreamSelectionFromUi();
 	void rebuildStreamList();
 	void load_config(QString filename);
 	void save_config(QString filename);
@@ -98,7 +108,7 @@ private:
 	std::unique_ptr<QTimer> timer;
 
 	QList<StreamItem> knownStreams;
-	QSet<QString> missingStreams;
+	QList<MissingStreamItem> missingStreams;
 	std::map<std::string, int> syncOptionsByStreamName;
 
 	// QString recFilename;

@@ -95,6 +95,12 @@ Currently supported commands include:
 
 Commands respond with `OK`, `WARNING ...`, or `ERROR ...`.
 
+Query selection is additive: use `select none` before `select <query>` to select
+only its matches. For a stream with a nonempty source ID, that identity is retained
+during a session if it disappears, so a different source with the same display name
+is not selected or recorded in its place. Unchecked missing streams are not watched
+for recording.
+
 `filename` is followed by a series of space-delimited options enclosed in curly braces. e.g. {root:C:\root_data_dir}
 * `root` - Sets the root data directory.
 * `template` - sets the File Name / Template. Will unselect BIDS option. May contain wildcards.
