@@ -87,10 +87,19 @@ If you check the box to EnableRCS then LabRecorder exposes some rudimentary cont
 Currently supported commands include:
 * `select all`
 * `select none`
-* `start`
+* `select <query>` - checks streams matching an LSL resolver predicate such as `name='BioSemi'`, `type='EEG'`, or `name='BioSemi' and hostname='LabPC1'`.
+* `start` - starts recording the current stream selection; returns an error if no streams are selected.
 * `stop`
 * `update`
 * `filename ...`
+
+Commands respond with `OK`, `WARNING ...`, or `ERROR ...`.
+
+Query selection is additive: use `select none` before `select <query>` to select
+only its matches. For a stream with a nonempty source ID, that identity is retained
+during a session if it disappears, so a different source with the same display name
+is not selected or recorded in its place. Unchecked missing streams are not watched
+for recording.
 
 `filename` is followed by a series of space-delimited options enclosed in curly braces. e.g. {root:C:\root_data_dir}
 * `root` - Sets the root data directory.
