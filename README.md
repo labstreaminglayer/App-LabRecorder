@@ -63,9 +63,17 @@ The Block/Task field can be overwriten or selected among a list of items found i
 
 <!--If the checkbox "Enable scripted actions" is checked, then scripted actions that are defined in your current config file will be automatically invoked when you click Start, Stop, or select a block. This check box is by normally unchecked unless you have custom-tailored a configuration to your experiment or experimentation environment.-->
 
-Click "Start" to start a recording. If everything goes well, the status bar will now display the time since you started the recording, and more importantly, the current file size (the number before the kb) will grow slowly. This is a way to check whether you are still in fact recording data. The recording program cannot be closed while you are recording (as a safety measure).
+Click "Start" to start a recording. If everything goes well, the status bar will now display the time since you started the recording, and more importantly, the current file size (the number before the kb) will grow slowly. This is a way to check whether you are still in fact recording data. Closing the window requests Stop and waits for finalization while keeping the interface responsive.
 
-When you are done recording, click the "Stop" button. You can now close the program. See [the xdf repository](https://github.com/sccn/xdf) for tools and information on how to use the XDF files.
+When you are done recording, click **Stop**. This fixes a cutoff in the recorder's clock. Inlets stay subscribed to catch up on delayed data timestamped at or before that cutoff. The interface distinguishes **Catching up**, **Waiting for pre-stop data**, and **Closing recording file**. A new recording cannot start until the file is flushed and closed.
+
+Catch-up continues while pre-stop timestamps advance, even if it takes longer than five seconds. Each stream gets a **two-second inactivity grace**, measured since its last advancing pre-stop timestamp (or the start of catch-up). Samples arriving out of order are accepted during that grace; receiving a post-stop sample does not close the inlet immediately. Silent marker streams, disconnected sources, and non-advancing timestamps therefore cannot hold collection open indefinitely. Data arriving after the grace expires may be missed: neither silence nor crossing the cutoff proves that an outlet's buffers are empty.
+
+Comparison uses an LSL clock-correction estimate, without modifying the timestamps written to XDF or correcting an already clock-synchronized inlet twice. Clock estimates and source timestamps can be imperfect. If no correction is available, arrivals are preserved during a finite grace, potentially including post-stop samples, and the footer records this limitation. Each stream footer's `collection_end` records the recorder-clock `stop_time`, the grace interval, and a reason: `cutoff_observed`, `inactivity_timeout`, `clock_unavailable`, `unreliable_timestamps`, `user_requested`, or `transfer_error`. `cutoff_observed` means a later timestamp was seen and the grace elapsed; it is not a guarantee against arbitrarily delayed or reordered samples.
+
+**Finish now…** lets you end catch-up early and finalize the samples already saved; its confirmation explains that additional data may be missed. If a worker or file operation makes no progress for five seconds, **Force quit…** becomes available. Progress on one stream cannot hide a stalled worker on another. Force quitting may leave an incomplete file or lose buffered samples; it never reports successful finalization. Completed chunks are flushed periodically and footers immediately to improve recovery. **Stopped — file finalized** means the workers finished and the file was flushed and closed; the status also notes streams that ended without observing the cutoff.
+
+`LabRecorderCLI` uses a five-second **inactivity** timeout after Enter, extended by progress rather than elapsed time alone. Use `--stop-timeout SECONDS` before the output filename to change it (greater than zero, at most 3600; values below the two-second grace can interrupt normal catch-up). Exit status **0** means the file finalized, subject to its footer's collection-end reasons; **3** means a worker exceeded the inactivity timeout and the file may be incomplete; **4** means recording or finalization failed. A continuously advancing backlog has no fixed overall deadline. See [the xdf repository](https://github.com/sccn/xdf) for tools and information on how to use the XDF files.
 
 ## Preparing a Full Study
 
@@ -89,8 +97,11 @@ Currently supported commands include:
 * `select none`
 * `start`
 * `stop`
+* `status`
 * `update`
 * `filename ...`
+
+`stop` acknowledges the request with `OK`; this is not a completion notification. Poll `status` for a newline-terminated state: `recording`, `finishing` (initial stop request), `catching_up`, `waiting`, `closing`, `stalled`, `stopped`, or `error`. Wait for `stopped` before restarting or using the file. `start` is rejected with `ERROR <state>` while a recording is active or finalizing.
 
 `filename` is followed by a series of space-delimited options enclosed in curly braces. e.g. {root:C:\root_data_dir}
 * `root` - Sets the root data directory.

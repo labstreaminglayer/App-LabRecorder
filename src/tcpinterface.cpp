@@ -17,6 +17,14 @@ void RemoteControlSocket::addClient() {
 
 void RemoteControlSocket::handleLine(QString s, QTcpSocket *sock) {
 	qInfo() << s;
+	if (s == "status") {
+		sock->write(recordingState.toUtf8() + '\n');
+		return;
+	}
+	if (s == "start" && recordingState != "stopped" && recordingState != "error") {
+		sock->write("ERROR " + recordingState.toUtf8() + '\n');
+		return;
+	}
 	if (s == "start")
 		emit start();
 	else if (s == "stop")

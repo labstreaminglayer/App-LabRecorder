@@ -13,6 +13,7 @@ class RemoteControlSocket : public QObject {
 	QList<QTcpSocket*> clients;
 public:
 	RemoteControlSocket(uint16_t port);
+	QString recordingState = "stopped";
 
 signals:
 	void refresh_streams();

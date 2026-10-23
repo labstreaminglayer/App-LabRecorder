@@ -3,6 +3,7 @@
 #include "conversions.h"
 
 #include <cassert>
+#include <chrono>
 #include <mutex>
 #include <sstream>
 #include <thread>
@@ -36,6 +37,8 @@ private:
 	void _write_chunk_header(
 		chunk_tag_t tag, std::size_t length, const streamid_t *streamid_p = nullptr);
 	std::mutex write_mut;
+	std::chrono::steady_clock::time_point last_flush_ = std::chrono::steady_clock::now();
+	void flush_if_due(bool force = false);
 
 	// write a generic chunk
 	void _write_chunk(
@@ -47,6 +50,10 @@ public:
 	 * @param filename  Filename to write to
 	 */
 	XDFWriter(const std::string &filename);
+	/// Flush and close after all writing threads have finished; reports output failures.
+	void close();
+	/// Flush completed chunks to the OS while the recording remains open.
+	void checkpoint();
 
 	template <typename T>
 	void write_data_chunk(streamid_t streamid, const std::vector<double> &timestamps,

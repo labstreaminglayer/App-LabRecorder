@@ -18,3 +18,4 @@ liblsl.deb
 install-qt.sh
 .DS_Store
 .codegraph/
+__pycache__/

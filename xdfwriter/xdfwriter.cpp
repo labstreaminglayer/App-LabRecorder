@@ -28,6 +28,7 @@ XDFWriter::XDFWriter(const std::string &filename)
 	file_.push(
 		boost::iostreams::file_descriptor_sink(filename, std::ios::binary | std::ios::trunc));
 #endif
+	file_.exceptions(std::ios::badbit | std::ios::failbit);
 	// [MagicCode]
 	file_ << "XDF:";
 	// [FileHeader] chunk
@@ -46,6 +47,33 @@ void XDFWriter::_write_chunk(
 	_write_chunk_header(tag, content.length(), streamid_p);
 	// [Content]
 	file_ << content;
+	flush_if_due(tag == chunk_tag_t::fileheader || tag == chunk_tag_t::streamheader ||
+		tag == chunk_tag_t::streamfooter);
+}
+
+void XDFWriter::flush_if_due(bool force) {
+	const auto now = std::chrono::steady_clock::now();
+	if (force || now - last_flush_ >= std::chrono::seconds(1)) {
+		// Only called after a complete chunk, under write_mut (or during construction).
+		// This preserves recoverable output on force-quit; it is not a disk fsync.
+		file_.flush();
+		last_flush_ = now;
+	}
+}
+
+void XDFWriter::close() {
+	std::lock_guard<std::mutex> lock(write_mut);
+	flush_if_due(true);
+#ifdef XDFZ_SUPPORT
+	file_.reset();
+#else
+	file_.close();
+#endif
+}
+
+void XDFWriter::checkpoint() {
+	std::lock_guard<std::mutex> lock(write_mut);
+	flush_if_due(true);
 }
 
 void XDFWriter::_write_chunk_header(
@@ -80,6 +108,7 @@ void XDFWriter::write_stream_offset(streamid_t streamid, double now, double offs
 	write_little_endian(file_, now - offset);
 	// [OffsetValue]
 	write_little_endian(file_, offset);
+	flush_if_due();
 }
 
 void XDFWriter::write_boundary_chunk() {
@@ -89,4 +118,5 @@ void XDFWriter::write_boundary_chunk() {
 		0xD5, 0x46, 0x73, 0x83, 0xCB, 0xE4};
 	_write_chunk_header(chunk_tag_t::boundary, sizeof(boundary_uuid));
 	write_sample_values(file_, boundary_uuid, sizeof(boundary_uuid));
+	flush_if_due(true);
 }
