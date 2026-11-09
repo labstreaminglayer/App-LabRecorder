@@ -12,6 +12,13 @@
 // Thread utilities
 using Clock = std::chrono::high_resolution_clock;
 
+// Print a whole line at once so concurrent stream threads don't interleave their output.
+static void say(const std::string &line) {
+	static std::mutex mut;
+	std::lock_guard<std::mutex> lock(mut);
+	std::cout << line << std::endl;
+}
+
 /**
  * @brief try_join_once		joins and deconstructs the thread if possible
  * @param thread			unique_ptr to a std::tread. Will be reset on success
@@ -178,17 +185,15 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 
 			try {
 				in->open_stream(max_open_wait);
-				std::cout << "Opened the stream " << src.name() << "." << std::endl;
+				say("Opened the stream " + src.name() + ".");
 			} catch (lsl::timeout_error &) {
-				std::cout
-					<< "Subscribing to the stream " << src.name()
-					<< " is taking relatively long; collection from this stream will be delayed."
-					<< std::endl;
+				say("Subscribing to the stream " + src.name() +
+					" is taking relatively long; collection from this stream will be delayed.");
 			}
 
 			// retrieve the stream header & get its XML version
 			file_.write_stream_header(streamid, in->info().as_xml());
-			std::cout << "Received header for stream " << src.name() << "." << std::endl;
+			say("Received header for stream " + src.name() + ".");
 
 			leave_headers_phase(phase_locked);
 		} catch (std::exception &) {
@@ -205,7 +210,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			// "forgot to turn on" before the recording started; in that case the file would have to
 			// be post-processed to be in properly sorted (seekable) format
 			enter_streaming_phase(phase_locked);
-			std::cout << "Started data collection for stream " << src.name() << "." << std::endl;
+			say("Started data collection for stream " + src.name() + ".");
 
 			const double nominal_srate = in->info().nominal_srate();
 
@@ -270,7 +275,7 @@ void recording::record_from_streaminfo(const lsl::stream_info &src, bool phase_l
 			}
 			file_.write_stream_footer(streamid, footer.str());
 
-			std::cout << "Wrote footer for stream " << src.name() << "." << std::endl;
+			say("Wrote footer for stream " + src.name() + ".");
 			leave_footers_phase(phase_locked);
 		} catch (std::exception &) {
 			leave_footers_phase(phase_locked);
@@ -319,7 +324,7 @@ void recording::record_offsets(
 	} catch (std::exception &e) {
 		std::cout << "Error in the record_offsets thread: " << e.what() << std::endl;
 	}
-	std::cout << "Offsets thread is finished" << std::endl;
+	say("Offsets thread is finished");
 }
 
 void recording::enter_headers_phase(bool phase_locked) {
