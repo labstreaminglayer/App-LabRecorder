@@ -40,7 +40,7 @@ jobs:
         config:
           - { name: "Ubuntu 22.04", os: ubuntu-22.04 }
           - { name: "Ubuntu 24.04", os: ubuntu-24.04 }
-          - { name: "macOS", os: macos-14, cmake_extra: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"' }
+          - { name: "macOS", os: macos-15, cmake_extra: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"' }
           - { name: "Windows", os: windows-latest }
 
     steps:
@@ -136,7 +136,7 @@ jobs:
     name: Sign & Notarize (macOS)
     needs: build
     if: (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout
@@ -145,7 +145,7 @@ jobs:
       - name: Download macOS Artifact
         uses: actions/download-artifact@v4
         with:
-          name: package-macos-14
+          name: package-macos-15
           path: packages
 
       - name: Extract Package
