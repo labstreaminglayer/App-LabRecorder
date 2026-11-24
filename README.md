@@ -136,6 +136,19 @@ You should check the health of your device to be sure, however, for example usin
 
 If a device is displayed in red when you start recording (and it is checked), it will be added to the ongoing recording by the time when it comes online. This can be useful when a device can only be turned on while the recording is already in progress. Again, it is advisable to check that the device is in fact discoverable and added. The LabRecorder brings up a console window in the background which shows a list of all streams that are added to the recording -- this is a good place to check whether a late stream did get picked up successfully during a live recording.
 
+## Clock Drift Correction
+
+liblsl 1.18 adds an optional clock drift model that smooths the clock offsets the LabRecorder measures between machines. It is off by default. We recommend enabling it in your [lsl_api.cfg](https://labstreaminglayer.readthedocs.io/info/lslapicfg.html):
+
+```ini
+[tuning]
+TimeDriftWindow = 60
+```
+
+liblsl reads only the first config file it finds, so add this to your existing `lsl_api.cfg` if you have one. Do not create a second file.
+
+This setting is not strictly necessary. The XDF importers (e.g., pyxdf, load_xdf) have similar but different routines that correct for clock drift from the clock offsets stored in the file.
+
 # Build Instructions
 
 Please follow the general [LSL App build instructions](https://labstreaminglayer.readthedocs.io/dev/app_build.html).
