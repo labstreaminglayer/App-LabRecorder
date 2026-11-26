@@ -2,6 +2,25 @@
 
 This file includes quick start recipes. To see general principles, look [here](https://github.com/labstreaminglayer/labstreaminglayer/blob/master/doc/BUILD.md).
 
+## Stream selection regression check
+
+With a GUI build configured, build and run the standalone selection check:
+
+```sh
+cmake --build build --target teststreamselection --config Release
+./build/teststreamselection
+```
+
+For a Visual Studio build, run `build\Release\teststreamselection.exe` instead.
+This target uses the application's Qt and liblsl dependencies and is built only
+when requested. It runs the actual GUI selection code offscreen with temporary
+configuration files and synthetic outlets in a private LSL session. Local stream
+discovery must be available. A failed check returns a nonzero exit code.
+
+The checks cover stream identities after query selection and refresh, missing
+stream deselection and watchlist input, and disappearance/reappearance without
+switching source identities. They do not start a recording or validate XDF contents.
+
 
 ## Windows - CMake - Visual Studio 2017
 
